@@ -1,1945 +1,1024 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tableau de Bord Production – Centre d'Appels Énergie</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --sidebar-bg: #1a1d2e;
-    --sidebar-text: #a8b2d8;
-    --sidebar-active: #4f8ef7;
-    --accent: #4f8ef7;
-    --accent-light: #e8f0fe;
-    --bg: #f0f2f8;
-    --white: #ffffff;
-    --border: #e2e8f0;
-    --text: #1e2a3b;
-    --text-muted: #64748b;
-    --success: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-    --total-bg: #e8f0fe;
-    --total-border: #4f8ef7;
-    --row-alt: #f8faff;
-    --input-border: #cbd5e1;
-    --shadow: 0 2px 8px rgba(0,0,0,0.08);
-    --radius: 8px;
-  }
-
-  body {
-    font-family: system-ui, -apple-system, 'Segoe UI', Inter, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-    font-size: 14px;
-  }
-
-  /* SIDEBAR */
-  #sidebar {
-    width: 220px;
-    min-width: 220px;
-    background: var(--sidebar-bg);
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    overflow-y: auto;
-    z-index: 10;
-  }
-
-  .sidebar-logo {
-    padding: 20px 18px 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
-  }
-
-  .sidebar-logo h1 {
-    font-size: 13px;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: 0.5px;
-    line-height: 1.3;
-  }
-
-  .sidebar-logo span {
-    font-size: 11px;
-    color: var(--sidebar-text);
-    font-weight: 400;
-  }
-
-  .sidebar-nav {
-    padding: 12px 0;
-    flex: 1;
-  }
-
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 11px 18px;
-    cursor: pointer;
-    color: var(--sidebar-text);
-    font-size: 13px;
-    font-weight: 500;
-    transition: all 0.15s;
-    border-left: 3px solid transparent;
-    user-select: none;
-  }
-
-  .nav-item:hover { background: rgba(79,142,247,0.08); color: #fff; }
-
-  .nav-item.active {
-    background: rgba(79,142,247,0.15);
-    color: var(--accent);
-    border-left-color: var(--accent);
-  }
-
-  .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; }
-
-  /* MAIN */
-  #main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  /* TOP BAR */
-  #topbar {
-    background: var(--white);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-shrink: 0;
-    box-shadow: var(--shadow);
-  }
-
-  #topbar label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
-
-  #monthSelector {
-    padding: 7px 12px;
-    border: 1.5px solid var(--input-border);
-    border-radius: var(--radius);
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    background: var(--white);
-    cursor: pointer;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-
-  #monthSelector:focus { border-color: var(--accent); }
-
-  .btn {
-    padding: 8px 16px;
-    border-radius: var(--radius);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    border: none;
-    transition: all 0.15s;
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #3a7de8; }
-  .btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); }
-  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-  .btn-success { background: var(--success); color: #fff; }
-  .btn-success:hover { background: #0da271; }
-  .btn-danger { background: var(--danger); color: #fff; }
-
-  /* CONTENT */
-  #content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-  }
-
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
-  /* SECTION CARDS */
-  .card {
-    background: var(--white);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    margin-bottom: 20px;
-    overflow: hidden;
-  }
-
-  .card-header {
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .card-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .card-body { padding: 20px; }
-
-  /* FORM GRID */
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 16px;
-    margin-bottom: 0;
-  }
-
-  .form-group { display: flex; flex-direction: column; gap: 5px; }
-  .form-group label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
-
-  .form-control {
-    padding: 8px 11px;
-    border: 1.5px solid var(--input-border);
-    border-radius: 6px;
-    font-size: 14px;
-    color: var(--text);
-    background: var(--white);
-    outline: none;
-    transition: border-color 0.15s;
-    width: 100%;
-  }
-
-  .form-control:focus { border-color: var(--accent); }
-  .form-control[type="number"] { width: 100%; }
-
-  /* TABLES */
-  .table-wrap { overflow-x: auto; }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-
-  thead th {
-    background: #f8faff;
-    color: var(--text-muted);
-    font-weight: 700;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 10px 12px;
-    border-bottom: 2px solid var(--border);
-    text-align: left;
-    white-space: nowrap;
-  }
-
-  tbody tr:nth-child(even) { background: var(--row-alt); }
-  tbody tr:hover { background: #eef3ff; }
-
-  tbody td {
-    padding: 9px 12px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-    white-space: nowrap;
-  }
-
-  .total-row td {
-    background: var(--total-bg) !important;
-    font-weight: 700;
-    border-top: 2px solid var(--total-border);
-    border-bottom: none;
-    color: var(--text);
-  }
-
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
-
-  /* SUPPLIER TABLE INPUTS */
-  .supplier-table input.form-control {
-    padding: 5px 8px;
-    font-size: 13px;
-    width: 80px;
-    min-width: 60px;
-  }
-
-  .supplier-table select.form-control {
-    padding: 5px 8px;
-    font-size: 13px;
-    width: 90px;
-  }
-
-  .split-manual-inputs {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
-
-  .split-manual-inputs input {
-    width: 55px !important;
-  }
-
-  .split-manual-inputs span {
-    font-size: 11px;
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
-
-  /* SUB-TABS (pills) */
-  .subtab-bar {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-  }
-
-  .subtab-btn {
-    padding: 6px 16px;
-    border-radius: 20px;
-    border: 1.5px solid var(--border);
-    background: var(--white);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .subtab-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .subtab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-  .period-tab-bar {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 14px;
-  }
-
-  .period-tab-btn {
-    padding: 5px 14px;
-    border-radius: 16px;
-    border: 1.5px solid var(--border);
-    background: var(--white);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .period-tab-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .period-tab-btn.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
-
-  /* STATUS BADGES */
-  .badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-  }
-
-  .badge-ok { background: #d1fae5; color: #065f46; }
-  .badge-limite { background: #fef3c7; color: #92400e; }
-  .badge-non { background: #fee2e2; color: #991b1b; }
-
-  /* MODAL */
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.45);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .modal-overlay.open { display: flex; }
-
-  .modal {
-    background: var(--white);
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    padding: 28px;
-    max-width: 440px;
-    width: 100%;
-    margin: 16px;
-  }
-
-  .modal h2 { font-size: 18px; margin-bottom: 6px; }
-  .modal p { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
-  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-
-  .warning-box {
-    background: #fef3c7;
-    border: 1px solid #f59e0b;
-    border-radius: 6px;
-    padding: 10px 14px;
-    font-size: 12px;
-    color: #92400e;
-    margin-bottom: 14px;
-    display: none;
-  }
-
-  .warning-box.show { display: block; }
-
-  /* SECTION TITLE */
-  .section-title {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .section-title::after {
-    content: '';
-    flex: 1;
-    height: 2px;
-    background: linear-gradient(to right, var(--accent-light), transparent);
-    border-radius: 2px;
-  }
-
-  /* SCENARIO specific */
-  .scenario-note {
-    background: var(--accent-light);
-    border: 1px solid #bdd3fb;
-    border-radius: 6px;
-    padding: 10px 14px;
-    font-size: 12px;
-    color: #1e40af;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* PARAMS TABLE */
-  .params-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-  }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-
-  /* Responsive */
-  @media (max-width: 768px) {
-    #sidebar { width: 56px; min-width: 56px; }
-    .nav-item span { display: none; }
-    .sidebar-logo h1, .sidebar-logo span { display: none; }
-  }
-
-  /* PDF export button area */
-  .export-bar {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 16px;
-  }
-
-  /* Sub panel visibility */
-  .sub-panel { display: none; }
-  .sub-panel.active { display: block; }
-
-  .inline-flex { display: inline-flex; align-items: center; gap: 6px; }
-
-  /* Number input no spinners */
-  input[type=number]::-webkit-outer-spin-button,
-  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  input[type=number] { -moz-appearance: textfield; }
-
-  .chip {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-    font-weight: 600;
-    background: var(--accent-light);
-    color: var(--accent);
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProdPilot — Pilotage Prévisionnel Call Center Énergie</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#09090b;--surface:#111116;--surface2:#18181f;--surface3:#1f1f2e;
+      --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+      --text:#f1f5f9;--muted:#64748b;--muted2:#94a3b8;
+      --primary:#6366f1;--primary-dark:#4f46e5;--primary-glow:rgba(99,102,241,0.15);
+      --success:#10b981;--warning:#f59e0b;--danger:#ef4444;
+      --success-bg:rgba(16,185,129,0.1);--warning-bg:rgba(245,158,11,0.1);--danger-bg:rgba(239,68,68,0.1);
+      --radius:12px;--radius-sm:8px
+    }
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5}
+
+    /* HEADER */
+    .app-header{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 24px;height:60px;border-bottom:1px solid var(--border);
+      background:var(--surface);position:sticky;top:0;z-index:100
+    }
+    .header-logo{display:flex;align-items:center;gap:10px}
+    .logo-icon{width:32px;height:32px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .logo-text{font-size:15px;font-weight:700;color:var(--text)}
+    .logo-sub{font-size:11px;color:var(--muted);margin-top:1px}
+    .month-nav{display:flex;align-items:center;gap:12px}
+    .month-nav button{background:var(--surface2);border:1px solid var(--border2);color:var(--text);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;transition:all 0.15s;display:flex;align-items:center;justify-content:center}
+    .month-nav button:hover{background:var(--surface3);border-color:var(--primary)}
+    .month-display{font-size:14px;font-weight:600;color:var(--text);min-width:100px;text-align:center}
+    .header-actions{display:flex;gap:8px}
+
+    /* NAV */
+    .app-nav{
+      display:flex;gap:2px;padding:0 24px;
+      border-bottom:1px solid var(--border);background:var(--surface);
+      position:sticky;top:60px;z-index:99
+    }
+    .nav-tab{
+      display:flex;align-items:center;gap:7px;padding:0 16px;height:44px;
+      border:none;background:transparent;color:var(--muted2);font-size:13px;font-weight:500;
+      cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s;
+      font-family:'Inter',sans-serif
+    }
+    .nav-tab:hover{color:var(--text)}
+    .nav-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+    .nav-tab .tab-icon{font-size:15px}
+
+    /* MAIN */
+    .app-main{padding:24px;max-width:1400px;margin:0 auto}
+
+    /* PAGE HEADER */
+    .page-header{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+    .page-header h2{font-size:20px;font-weight:700;color:var(--text)}
+    .month-badge{background:var(--primary-glow);color:var(--primary);padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid rgba(99,102,241,0.2)}
+
+    /* KPI GRID */
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+    .kpi-card{
+      background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+      padding:20px;transition:border-color 0.15s
+    }
+    .kpi-card:hover{border-color:var(--border2)}
+    .kpi-icon{font-size:20px;margin-bottom:12px}
+    .kpi-label{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+    .kpi-value{font-size:28px;font-weight:800;color:var(--text);line-height:1;margin-bottom:4px}
+    .kpi-sub{font-size:11px;color:var(--muted)}
+
+    /* INFO ROW */
+    .info-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+    .info-chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:12px;color:var(--muted2);font-weight:500}
+
+    /* CC CARDS */
+    .cc-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+    .cc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+    .cc-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+    .cc-name{font-size:14px;font-weight:700;color:var(--text)}
+    .cc-agents{font-size:12px;color:var(--muted)}
+    .cc-stat{margin-bottom:12px}
+    .cc-stat-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+    .cc-stat-value{font-size:18px;font-weight:700;color:var(--text)}
+    .cc-stat-sub{font-size:11px;color:var(--muted)}
+    .progress-bar{height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-top:8px}
+    .progress-fill{height:100%;border-radius:3px;transition:width 0.5s}
+    .progress-fill.success{background:var(--success)}
+    .progress-fill.warning{background:var(--warning)}
+    .progress-fill.danger{background:var(--danger)}
+
+    /* BADGES */
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+    .badge.success{background:var(--success-bg);color:var(--success)}
+    .badge.warning{background:var(--warning-bg);color:var(--warning)}
+    .badge.danger{background:var(--danger-bg);color:var(--danger)}
+
+    /* CHARTS */
+    .charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px}
+    .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+    .chart-card h3{font-size:13px;font-weight:600;color:var(--muted2);margin-bottom:16px;text-transform:uppercase;letter-spacing:0.5px}
+    .chart-container{position:relative;height:280px}
+
+    /* SECTION CARD */
+    .section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+    .section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .section-card h3{font-size:13px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.5px}
+
+    /* TABLES */
+    .data-table{width:100%;border-collapse:collapse}
+    .data-table th{text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;border-bottom:1px solid var(--border)}
+    .data-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}
+    .data-table tbody tr:last-child td{border-bottom:none}
+    .data-table tbody tr:hover td{background:rgba(255,255,255,0.02)}
+    .data-table tfoot tr td{border-bottom:none}
+    .data-table .row-total td{background:var(--surface3);font-weight:700;font-size:13px;color:var(--text);border-top:1px solid var(--border2)}
+    .data-table .num{text-align:right;font-variant-numeric:tabular-nums}
+    .data-table .supplier-name{display:flex;align-items:center;gap:8px}
+    .supplier-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+    /* CONFIG TABLE */
+    .config-table{width:100%;border-collapse:collapse}
+    .config-table th{text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+    .config-table td{padding:6px 10px;border-bottom:1px solid var(--border)}
+    .config-table tbody tr:last-child td{border-bottom:none}
+    .config-table tbody tr:hover td{background:rgba(255,255,255,0.02)}
+    .config-table tfoot tr td{background:var(--surface3);font-weight:700;border-top:1px solid var(--border2);border-bottom:none}
+    .config-table .computed{font-size:12px;color:var(--muted2);font-weight:600}
+
+    /* INPUTS */
+    .input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:var(--radius-sm);font-size:13px;font-family:'Inter',sans-serif;outline:none;transition:border-color 0.15s}
+    .input:focus{border-color:var(--primary)}
+    .input.w-sm{width:70px}
+    .input.w-md{width:90px}
+    .input.w-lg{width:120px}
+    .input-name{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);padding:4px 2px;font-size:13px;font-family:'Inter',sans-serif;outline:none;width:130px}
+    .input-name:hover,.input-name:focus{border-bottom-color:var(--border2)}
+    select.input{cursor:pointer}
+
+    /* BUTTONS */
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all 0.15s;font-family:'Inter',sans-serif}
+    .btn-primary{background:var(--primary);color:#fff}
+    .btn-primary:hover{background:var(--primary-dark)}
+    .btn-outline{background:transparent;border:1px solid var(--border2);color:var(--text)}
+    .btn-outline:hover{background:var(--surface2);border-color:var(--primary)}
+    .btn-ghost{background:transparent;border:1px solid transparent;color:var(--muted2)}
+    .btn-ghost:hover{background:var(--surface2);color:var(--text)}
+    .btn-danger{background:var(--danger-bg);border:1px solid transparent;color:var(--danger)}
+    .btn-danger:hover{background:rgba(239,68,68,0.2)}
+    .btn-sm{padding:5px 12px;font-size:12px}
+
+    /* SUB-NAV */
+    .sub-nav{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:4px;width:fit-content}
+    .sub-nav-btn{padding:6px 16px;border:none;background:transparent;color:var(--muted2);font-size:13px;font-weight:500;border-radius:8px;cursor:pointer;transition:all 0.15s;font-family:'Inter',sans-serif}
+    .sub-nav-btn.active{background:var(--surface3);color:var(--text)}
+
+    /* PERIOD TABS */
+    .period-tabs{display:flex;gap:4px}
+    .period-btn{padding:5px 14px;border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:12px;font-weight:500;border-radius:6px;cursor:pointer;transition:all 0.15s;font-family:'Inter',sans-serif}
+    .period-btn.active{background:var(--primary-glow);border-color:var(--primary);color:var(--primary)}
+
+    /* CC CONFIG */
+    .cc-config-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+    .cc-config-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+    .cc-config-card h3{font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px}
+    .form-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+    .form-row label{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px}
+
+    /* SIMULATION */
+    .sim-layout{display:grid;grid-template-columns:320px 1fr;gap:20px}
+    .sim-controls{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;height:fit-content}
+    .sim-controls h3{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 12px;border-top:1px solid var(--border);padding-top:16px}
+    .sim-controls h3:first-child{border-top:none;margin-top:0;padding-top:0}
+    .slider-row{margin-bottom:14px}
+    .slider-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+    .slider-name{font-size:13px;color:var(--text)}
+    .slider-val{font-size:13px;font-weight:700;color:var(--primary)}
+    input[type=range]{width:100%;height:4px;appearance:none;-webkit-appearance:none;background:var(--surface3);border-radius:2px;outline:none;cursor:pointer}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;background:var(--primary);border-radius:50%;cursor:pointer;transition:transform 0.1s}
+    input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+    input[type=range]::-moz-range-thumb{width:16px;height:16px;background:var(--primary);border-radius:50%;cursor:pointer;border:none}
+    .sim-results{display:flex;flex-direction:column;gap:16px}
+    .sim-kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .sim-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+    .sim-kpi .label{font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px}
+    .sim-kpi .value{font-size:22px;font-weight:800;color:var(--text)}
+    .sim-kpi .delta{font-size:11px;margin-top:3px}
+    .delta-pos{color:var(--success)}
+    .delta-neg{color:var(--danger)}
+    .delta-neu{color:var(--muted)}
+
+    /* DUP SECTION */
+    .dup-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
+
+    /* PRIORITY COLORS */
+    .prio-1{color:#f59e0b;font-weight:600}
+    .prio-2{color:var(--primary);font-weight:600}
+    .prio-3{color:var(--muted2);font-weight:600}
+
+    /* PRINT */
+    @media print{
+      .app-header,.app-nav,.header-actions,.nav-tab,.btn,.sub-nav,.period-tabs,
+      .sim-controls,button{display:none!important}
+      body{background:#fff;color:#000}
+      .app-main{padding:0;max-width:100%}
+      .section-card,.kpi-card,.cc-card,.chart-card{border:1px solid #ddd;background:#fff;break-inside:avoid}
+      .data-table th,.data-table td{color:#000;border-color:#ddd}
+      .kpi-value,.cc-stat-value{color:#000}
+      .kpi-label,.cc-stat-label{color:#666}
+      .row-total td{background:#f5f5f5!important}
+      .page-break{page-break-before:always}
+    }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar{width:6px;height:6px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+
+    /* TRANSITIONS */
+    .section-card,.kpi-card,.cc-card{transition:border-color 0.15s}
+    section{animation:fadeIn 0.2s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  </style>
 </head>
 <body>
-
-<!-- SIDEBAR -->
-<nav id="sidebar">
-  <div class="sidebar-logo">
-    <h1>TDB Production</h1>
-    <span>Énergie · Call Center</span>
-  </div>
-  <div class="sidebar-nav">
-    <div class="nav-item active" data-tab="matrice" onclick="switchTab('matrice')">
-      <span class="nav-icon">📊</span>
-      <span>Matrice de production</span>
-    </div>
-    <div class="nav-item" data-tab="capacite" onclick="switchTab('capacite')">
-      <span class="nav-icon">⚡</span>
-      <span>Module Capacité</span>
-    </div>
-    <div class="nav-item" data-tab="faisabilite" onclick="switchTab('faisabilite')">
-      <span class="nav-icon">✅</span>
-      <span>Module Faisabilité</span>
-    </div>
-    <div class="nav-item" data-tab="scenario" onclick="switchTab('scenario')">
-      <span class="nav-icon">🔮</span>
-      <span>Module Scénario</span>
-    </div>
-    <div class="nav-item" data-tab="parametres" onclick="switchTab('parametres')">
-      <span class="nav-icon">⚙️</span>
-      <span>Paramètres</span>
-    </div>
-  </div>
-</nav>
-
-<!-- MAIN -->
-<div id="main">
-  <!-- TOP BAR -->
-  <div id="topbar">
-    <label for="monthSelector">📅 Mois :</label>
-    <input type="month" id="monthSelector" onchange="onMonthChange()">
-    <button class="btn btn-secondary" onclick="openDuplicateModal()">⧉ Dupliquer ce mois</button>
-    <button class="btn btn-secondary" onclick="reprendreMoisPrecedent()">↩ Reprendre le mois précédent</button>
-  </div>
-
-  <!-- CONTENT -->
-  <div id="content">
-
-    <!-- ==================== MATRICE ==================== -->
-    <div class="tab-panel active" id="tab-matrice">
-      <div class="section-title">📊 Matrice de Production</div>
-
-      <!-- Config Call Centers -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">🏢 Configuration des centres d'appels</div>
-        </div>
-        <div class="card-body">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Agents ADM</label>
-              <input type="number" id="admAgents" class="form-control" value="95" min="0" oninput="onAgentsChange()">
-            </div>
-            <div class="form-group">
-              <label>Agents Active Contact</label>
-              <input type="number" id="activeAgents" class="form-control" value="75" min="0" oninput="onAgentsChange()">
-            </div>
-            <div class="form-group">
-              <label>Poids ADM <span id="poidsADMLabel" class="chip">-</span></label>
-              <div style="padding:8px 0; font-size:13px; color:var(--text-muted)">Calculé automatiquement</div>
-            </div>
-            <div class="form-group">
-              <label>Poids Active <span id="poidsActiveLabel" class="chip">-</span></label>
-              <div style="padding:8px 0; font-size:13px; color:var(--text-muted)">Calculé automatiquement</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Suppliers Input -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">⚡ Volumes fournisseurs</div>
-          <button class="btn btn-secondary" onclick="addSupplier()" style="font-size:12px; padding:5px 12px">+ Ajouter</button>
-        </div>
-        <div class="card-body" style="padding:0">
-          <div class="table-wrap">
-            <table class="supplier-table" id="supplierInputTable">
-              <thead>
-                <tr>
-                  <th>Fournisseur</th>
-                  <th class="num">Brut Total</th>
-                  <th class="num">Signé Total</th>
-                  <th>Répartition</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="supplierInputBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sub-tab bar -->
-      <div class="subtab-bar" id="viewSubtabs">
-        <button class="subtab-btn active" data-view="global" onclick="switchView('global')">Global</button>
-        <button class="subtab-btn" data-view="adm" onclick="switchView('adm')">ADM Value</button>
-        <button class="subtab-btn" data-view="active" onclick="switchView('active')">Active Contact</button>
-      </div>
-
-      <!-- Export PDF -->
-      <div class="export-bar">
-        <button class="btn btn-success" onclick="exportPDF()">⬇ Exporter PDF</button>
-      </div>
-
-      <!-- GLOBAL VIEW -->
-      <div class="sub-panel active" id="panel-global">
-        <div class="period-tab-bar">
-          <button class="period-tab-btn active" data-p="monthly" onclick="switchPeriod('global','monthly')">Mensuel</button>
-          <button class="period-tab-btn" data-p="weekly" onclick="switchPeriod('global','weekly')">Hebdomadaire</button>
-          <button class="period-tab-btn" data-p="daily" onclick="switchPeriod('global','daily')">Journalier</button>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title" id="global-period-label">Vue Globale – Mensuel</div></div>
-          <div class="card-body" style="padding:0">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Fournisseur</th>
-                    <th class="num">Brut Total</th>
-                    <th class="num">Signé Total</th>
-                    <th class="num">ADM Brut</th>
-                    <th class="num">ADM Signé</th>
-                    <th class="num">Active Brut</th>
-                    <th class="num">Active Signé</th>
-                  </tr>
-                </thead>
-                <tbody id="globalTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ADM VIEW -->
-      <div class="sub-panel" id="panel-adm">
-        <div class="period-tab-bar">
-          <button class="period-tab-btn active" data-p="monthly" onclick="switchPeriod('adm','monthly')">Mensuel</button>
-          <button class="period-tab-btn" data-p="weekly" onclick="switchPeriod('adm','weekly')">Hebdomadaire</button>
-          <button class="period-tab-btn" data-p="daily" onclick="switchPeriod('adm','daily')">Journalier</button>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title" id="adm-period-label">ADM Value – Mensuel</div></div>
-          <div class="card-body" style="padding:0">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Fournisseur</th>
-                    <th class="num">Brut</th>
-                    <th class="num">Signé</th>
-                  </tr>
-                </thead>
-                <tbody id="admTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ACTIVE VIEW -->
-      <div class="sub-panel" id="panel-active">
-        <div class="period-tab-bar">
-          <button class="period-tab-btn active" data-p="monthly" onclick="switchPeriod('active','monthly')">Mensuel</button>
-          <button class="period-tab-btn" data-p="weekly" onclick="switchPeriod('active','weekly')">Hebdomadaire</button>
-          <button class="period-tab-btn" data-p="daily" onclick="switchPeriod('active','daily')">Journalier</button>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title" id="active-period-label">Active Contact – Mensuel</div></div>
-          <div class="card-body" style="padding:0">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Fournisseur</th>
-                    <th class="num">Brut</th>
-                    <th class="num">Signé</th>
-                  </tr>
-                </thead>
-                <tbody id="activeTableBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+<div id="app">
+  <header class="app-header">
+    <div class="header-logo">
+      <div class="logo-icon">&#9889;</div>
+      <div>
+        <div class="logo-text">ProdPilot</div>
+        <div class="logo-sub">Call Center Energie</div>
       </div>
     </div>
-
-    <!-- ==================== CAPACITE ==================== -->
-    <div class="tab-panel" id="tab-capacite">
-      <div class="section-title">⚡ Module Capacité</div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Capacité théorique par centre d'appels</div>
-          <span id="capaciteJoursLabel" class="chip">26 jours/mois</span>
-        </div>
-        <div class="card-body" style="padding:0">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Centre d'appels</th>
-                  <th class="num">Agents</th>
-                  <th class="num">Capacité théorique Brut</th>
-                  <th class="num">Capacité théorique Signé</th>
-                  <th class="num">Objectif Brut (total fournisseurs)</th>
-                  <th class="num">Objectif Signé (total fournisseurs)</th>
-                  <th class="num">% Capacité Brut</th>
-                  <th class="num">% Capacité Signé</th>
-                </tr>
-              </thead>
-              <tbody id="capaciteBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+    <div class="month-nav">
+      <button id="btnPrevMonth" title="Mois precedent">&#8249;</button>
+      <span id="monthDisplay" class="month-display">Mars 2026</span>
+      <button id="btnNextMonth" title="Mois suivant">&#8250;</button>
     </div>
-
-    <!-- ==================== FAISABILITE ==================== -->
-    <div class="tab-panel" id="tab-faisabilite">
-      <div class="section-title">✅ Module Faisabilité</div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">Faisabilité par fournisseur et centre d'appels</div>
-        </div>
-        <div class="card-body" style="padding:0">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Fournisseur</th>
-                  <th>Centre d'appels</th>
-                  <th class="num">Brut objectif</th>
-                  <th class="num">Signé objectif</th>
-                  <th class="num">Capacité Brut</th>
-                  <th class="num">Capacité Signé</th>
-                  <th>Statut Brut</th>
-                  <th>Statut Signé</th>
-                </tr>
-              </thead>
-              <tbody id="faisabiliteBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+    <div class="header-actions">
+      <button id="btnExport" class="btn btn-outline">&#128424; Export PDF</button>
     </div>
-
-    <!-- ==================== SCENARIO ==================== -->
-    <div class="tab-panel" id="tab-scenario">
-      <div class="section-title">🔮 Module Scénario</div>
-      <div class="scenario-note">ℹ️ Les modifications dans ce module n'affectent pas les données principales. Simulez différents scénarios librement.</div>
-
-      <div class="card">
-        <div class="card-header"><div class="card-title">Configuration du scénario</div></div>
-        <div class="card-body">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Agents ADM (scénario)</label>
-              <input type="number" id="scenarioAdmAgents" class="form-control" value="95" min="0" oninput="updateScenario()">
-            </div>
-            <div class="form-group">
-              <label>Agents Active (scénario)</label>
-              <input type="number" id="scenarioActiveAgents" class="form-control" value="75" min="0" oninput="updateScenario()">
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><div class="card-title">Volumes fournisseurs (scénario)</div></div>
-        <div class="card-body" style="padding:0">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Fournisseur</th>
-                  <th class="num">Brut Total</th>
-                  <th class="num">Signé Total</th>
-                </tr>
-              </thead>
-              <tbody id="scenarioInputBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div class="subtab-bar" id="scenarioSubtabs">
-        <button class="subtab-btn active" data-view="s-global" onclick="switchScenarioView('s-global')">Global</button>
-        <button class="subtab-btn" data-view="s-adm" onclick="switchScenarioView('s-adm')">ADM Value</button>
-        <button class="subtab-btn" data-view="s-active" onclick="switchScenarioView('s-active')">Active Contact</button>
-      </div>
-
-      <div class="sub-panel active" id="panel-s-global">
-        <div class="card">
-          <div class="card-header"><div class="card-title">Résultat scénario – Vue Globale (Mensuel)</div></div>
-          <div class="card-body" style="padding:0">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Fournisseur</th>
-                    <th class="num">Brut Total</th>
-                    <th class="num">Signé Total</th>
-                    <th class="num">ADM Brut</th>
-                    <th class="num">ADM Signé</th>
-                    <th class="num">Active Brut</th>
-                    <th class="num">Active Signé</th>
-                  </tr>
-                </thead>
-                <tbody id="scenarioGlobalBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sub-panel" id="panel-s-adm">
-        <div class="card">
-          <div class="card-header"><div class="card-title">Résultat scénario – ADM Value (Mensuel)</div></div>
-          <div class="card-body" style="padding:0">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Fournisseur</th>
-                    <th class="num">Brut</th>
-                    <th class="num">Signé</th>
-                  </tr>
-                </thead>
-                <tbody id="scenarioAdmBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sub-panel" id="panel-s-active">
-        <div class="card">
-          <div class="card-header"><div class="card-title">Résultat scénario – Active Contact (Mensuel)</div></div>
-          <div class="card-body" style="padding:0">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Fournisseur</th>
-                    <th class="num">Brut</th>
-                    <th class="num">Signé</th>
-                  </tr>
-                </thead>
-                <tbody id="scenarioActiveBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== PARAMETRES ==================== -->
-    <div class="tab-panel" id="tab-parametres">
-      <div class="section-title">⚙️ Paramètres</div>
-      <div class="card">
-        <div class="card-header"><div class="card-title">Configuration générale</div></div>
-        <div class="card-body">
-          <div class="params-grid">
-            <div class="form-group">
-              <label>Agents ADM</label>
-              <input type="number" id="paramAdmAgents" class="form-control" value="95" min="0" oninput="syncParamAgents('adm')">
-            </div>
-            <div class="form-group">
-              <label>Agents Active Contact</label>
-              <input type="number" id="paramActiveAgents" class="form-control" value="75" min="0" oninput="syncParamAgents('active')">
-            </div>
-            <div class="form-group">
-              <label>Jours travaillés / mois</label>
-              <input type="number" id="paramJours" class="form-control" value="26" min="1" max="31" oninput="onParamChange()">
-            </div>
-            <div class="form-group">
-              <label>Capacité Brut / agent / jour</label>
-              <input type="number" id="paramCapaBrut" class="form-control" value="20" min="1" oninput="onParamChange()">
-            </div>
-            <div class="form-group">
-              <label>Capacité Signé / agent / jour</label>
-              <input type="number" id="paramCapaSigne" class="form-control" value="15" min="1" oninput="onParamChange()">
-            </div>
-            <div class="form-group">
-              <label>Mode répartition par défaut</label>
-              <select id="paramModeRep" class="form-control" onchange="onParamChange()">
-                <option value="auto">Auto</option>
-                <option value="manuel">Manuel</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /content -->
-</div><!-- /main -->
-
-<!-- DUPLICATE MODAL -->
-<div class="modal-overlay" id="duplicateModal">
-  <div class="modal">
-    <h2>⧉ Dupliquer ce mois</h2>
-    <p>Copiez les données du mois actuel vers un autre mois.</p>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Mois source</label>
-      <input type="month" id="dupSource" class="form-control" disabled>
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Mois cible</label>
-      <input type="month" id="dupTarget" class="form-control">
-    </div>
-    <div class="warning-box" id="dupWarning">⚠️ Le mois cible contient déjà des données. Elles seront écrasées.</div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeDuplicateModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="confirmDuplicate()">Confirmer la duplication</button>
-    </div>
-  </div>
-</div>
-
-<!-- CONFIRM MODAL -->
-<div class="modal-overlay" id="confirmModal">
-  <div class="modal">
-    <h2 id="confirmTitle">Confirmation</h2>
-    <p id="confirmText"></p>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeConfirmModal()">Annuler</button>
-      <button class="btn btn-primary" id="confirmOkBtn" onclick="">Confirmer</button>
-    </div>
-  </div>
+  </header>
+  <nav class="app-nav">
+    <button class="nav-tab active" data-tab="dashboard"><span class="tab-icon">&#128202;</span>Tableau de bord</button>
+    <button class="nav-tab" data-tab="config"><span class="tab-icon">&#9881;</span>Configuration</button>
+    <button class="nav-tab" data-tab="matrix"><span class="tab-icon">&#128203;</span>Matrice</button>
+    <button class="nav-tab" data-tab="simulation"><span class="tab-icon">&#128300;</span>Simulation</button>
+  </nav>
+  <main class="app-main">
+    <section id="tab-dashboard"></section>
+    <section id="tab-config" hidden></section>
+    <section id="tab-matrix" hidden></section>
+    <section id="tab-simulation" hidden></section>
+  </main>
 </div>
 
 <script>
-/* ============================================================
-   DATA MODEL & STORAGE
-   ============================================================ */
-const STORAGE_KEY = 'tdb_data';
+const STORAGE_KEY = 'prodpilot_v2';
+const MONTHS_FR = ['Janvier','F\u00e9vrier','Mars','Avril','Mai','Juin','Juillet','Ao\u00fbt','Septembre','Octobre','Novembre','D\u00e9cembre'];
+const SUPPLIER_COLORS = ['#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ec4899'];
+
 const DEFAULT_SUPPLIERS = [
-  { id: 1, name: 'Octopus', brutTotal: '', signéTotal: '', manualSplit: null },
-  { id: 2, name: 'Engie', brutTotal: '', signéTotal: '', manualSplit: null },
-  { id: 3, name: 'TotalEnergie', brutTotal: '', signéTotal: '', manualSplit: null },
-  { id: 4, name: 'Ekwateur', brutTotal: '', signéTotal: '', manualSplit: null },
-  { id: 5, name: 'Ilek', brutTotal: '', signéTotal: '', manualSplit: null },
-  { id: 6, name: 'Plenitude/ENI', brutTotal: '', signéTotal: '', manualSplit: null },
+  {id:'s1',name:'Octopus',brut:8000,txSig:0.65,txFact:0.85,valMoy:120,priority:1,splitMode:'auto',splitAdm:56},
+  {id:'s2',name:'Engie',brut:12000,txSig:0.70,txFact:0.88,valMoy:150,priority:1,splitMode:'auto',splitAdm:56},
+  {id:'s3',name:'TotalEnergie',brut:10000,txSig:0.68,txFact:0.82,valMoy:135,priority:2,splitMode:'auto',splitAdm:56},
+  {id:'s4',name:'Ekwateur',brut:5000,txSig:0.60,txFact:0.80,valMoy:110,priority:2,splitMode:'auto',splitAdm:56},
+  {id:'s5',name:'Ilek',brut:4000,txSig:0.62,txFact:0.78,valMoy:105,priority:3,splitMode:'auto',splitAdm:56},
+  {id:'s6',name:'Plenitude / ENI',brut:7000,txSig:0.66,txFact:0.84,valMoy:125,priority:2,splitMode:'auto',splitAdm:56}
 ];
 
-const DEFAULT_PARAMS = {
-  joursTravailles: 26,
-  capaBrut: 20,
-  capaSigne: 15,
-  modeRep: 'auto',
-};
+const DEFAULT_SETTINGS = { workingDays:26, productivityPerAgent:20 };
+const DEFAULT_CC = { adm:{agents:95,hoursPerDay:7}, active:{agents:75,hoursPerDay:7} };
 
-let appData = {}; // { "YYYY-MM": { suppliers, callCenters } }
-let params = { ...DEFAULT_PARAMS };
-let currentMonth = '';
-let _nextId = 100;
+let currentYear = 2026, currentMonth = 2;
+let activeTab = 'dashboard', matrixView = 'global', matrixPeriod = 'mensuel';
+const charts = {};
 
-// State for view period
-let viewPeriods = { global: 'monthly', adm: 'monthly', active: 'monthly' };
-
-function loadData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const stored = JSON.parse(raw);
-      appData = stored.months || {};
-      params = { ...DEFAULT_PARAMS, ...(stored.params || {}) };
-    }
-  } catch(e) { appData = {}; }
+function loadStorage(){
+  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : {}; }
+  catch(e){ return {}; }
 }
-
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ months: appData, params }));
+function saveStorage(d){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+  catch(e){}
 }
+function getMonthKey(y,m){ return y+'-'+String(m+1).padStart(2,'0'); }
+function getCurrentKey(){ return getMonthKey(currentYear, currentMonth); }
 
-function getMonthData(month) {
-  if (!appData[month]) {
-    appData[month] = {
-      suppliers: DEFAULT_SUPPLIERS.map(s => ({ ...s, id: s.id })),
-      callCenters: { adm: { agents: 95 }, active: { agents: 75 } },
-    };
-  }
-  return appData[month];
+function getMonthData(key){
+  const s = loadStorage();
+  if(s.months && s.months[key]) return s.months[key];
+  return { suppliers: JSON.parse(JSON.stringify(DEFAULT_SUPPLIERS)), settings: Object.assign({},DEFAULT_SETTINGS) };
 }
-
-function getCurrentMonthStr() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}`;
+function saveMonthData(key, data){
+  const s = loadStorage();
+  if(!s.months) s.months = {};
+  s.months[key] = data;
+  saveStorage(s);
 }
+function getCCData(){ const s = loadStorage(); return s.cc || JSON.parse(JSON.stringify(DEFAULT_CC)); }
+function saveCCData(cc){ const s = loadStorage(); s.cc = cc; saveStorage(s); }
+function getCurrentData(){ return getMonthData(getCurrentKey()); }
+function saveCurrentData(data){ saveMonthData(getCurrentKey(), data); }
 
-/* ============================================================
-   INIT
-   ============================================================ */
-function init() {
-  loadData();
-  currentMonth = getCurrentMonthStr();
-  document.getElementById('monthSelector').value = currentMonth;
+function calcAll(){
+  const data = getCurrentData();
+  const cc = getCCData();
+  const totalAgents = cc.adm.agents + cc.active.agents;
+  const autoAdmW = totalAgents > 0 ? cc.adm.agents / totalAgents : 0.5;
+  const wd = data.settings.workingDays || 26;
+  const prod = data.settings.productivityPerAgent || 20;
+  const WD = 4.33;
 
-  // Load params into UI
-  document.getElementById('paramJours').value = params.joursTravailles;
-  document.getElementById('paramCapaBrut').value = params.capaBrut;
-  document.getElementById('paramCapaSigne').value = params.capaSigne;
-  document.getElementById('paramModeRep').value = params.modeRep;
-
-  renderAll();
-}
-
-/* ============================================================
-   TAB NAVIGATION
-   ============================================================ */
-function switchTab(tab) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
-  document.querySelector(`.nav-item[data-tab="${tab}"]`).classList.add('active');
-
-  if (tab === 'capacite') renderCapacite();
-  if (tab === 'faisabilite') renderFaisabilite();
-  if (tab === 'scenario') initScenario();
-}
-
-function switchView(view) {
-  document.querySelectorAll('#viewSubtabs .subtab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector(`#viewSubtabs [data-view="${view}"]`).classList.add('active');
-  document.querySelectorAll('#tab-matrice .sub-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('panel-' + view).classList.add('active');
-}
-
-function switchPeriod(view, period) {
-  viewPeriods[view] = period;
-  const bar = document.querySelectorAll(`#panel-${view} .period-tab-btn`);
-  bar.forEach(b => b.classList.remove('active'));
-  document.querySelector(`#panel-${view} [data-p="${period}"]`).classList.add('active');
-  renderMatriceTables();
-}
-
-function switchScenarioView(view) {
-  document.querySelectorAll('#scenarioSubtabs .subtab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector(`#scenarioSubtabs [data-view="${view}"]`).classList.add('active');
-  document.querySelectorAll('#tab-scenario .sub-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('panel-' + view).classList.add('active');
-}
-
-/* ============================================================
-   MONTH CHANGE
-   ============================================================ */
-function onMonthChange() {
-  currentMonth = document.getElementById('monthSelector').value;
-  renderAll();
-}
-
-/* ============================================================
-   RENDER ALL
-   ============================================================ */
-function renderAll() {
-  const md = getMonthData(currentMonth);
-
-  // Sync agents from data
-  document.getElementById('admAgents').value = md.callCenters.adm.agents;
-  document.getElementById('activeAgents').value = md.callCenters.active.agents;
-  document.getElementById('paramAdmAgents').value = md.callCenters.adm.agents;
-  document.getElementById('paramActiveAgents').value = md.callCenters.active.agents;
-
-  updatePoidsLabels();
-  renderSupplierInput();
-  renderMatriceTables();
-  renderCapacite();
-  renderFaisabilite();
-}
-
-/* ============================================================
-   AGENTS CHANGE
-   ============================================================ */
-function onAgentsChange() {
-  const admVal = parseInt(document.getElementById('admAgents').value) || 0;
-  const actVal = parseInt(document.getElementById('activeAgents').value) || 0;
-  const md = getMonthData(currentMonth);
-  md.callCenters.adm.agents = admVal;
-  md.callCenters.active.agents = actVal;
-  document.getElementById('paramAdmAgents').value = admVal;
-  document.getElementById('paramActiveAgents').value = actVal;
-  saveData();
-  updatePoidsLabels();
-  renderMatriceTables();
-  renderCapacite();
-  renderFaisabilite();
-}
-
-function syncParamAgents(which) {
-  const val = parseInt(document.getElementById(which === 'adm' ? 'paramAdmAgents' : 'paramActiveAgents').value) || 0;
-  document.getElementById(which === 'adm' ? 'admAgents' : 'activeAgents').value = val;
-  onAgentsChange();
-}
-
-function updatePoidsLabels() {
-  const adm = parseInt(document.getElementById('admAgents').value) || 0;
-  const act = parseInt(document.getElementById('activeAgents').value) || 0;
-  const total = adm + act;
-  const pa = total > 0 ? ((adm / total) * 100).toFixed(1) : '0';
-  const pb = total > 0 ? ((act / total) * 100).toFixed(1) : '0';
-  document.getElementById('poidsADMLabel').textContent = pa + '%';
-  document.getElementById('poidsActiveLabel').textContent = pb + '%';
-}
-
-/* ============================================================
-   SUPPLIER INPUT TABLE
-   ============================================================ */
-function renderSupplierInput() {
-  const md = getMonthData(currentMonth);
-  const body = document.getElementById('supplierInputBody');
-  body.innerHTML = '';
-
-  md.suppliers.forEach((s, idx) => {
-    const isManual = s.manualSplit !== null;
-    const adPct = isManual ? (s.manualSplit.adm !== undefined ? s.manualSplit.adm : 50) : '';
-    const acPct = isManual ? (s.manualSplit.active !== undefined ? s.manualSplit.active : 50) : '';
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>
-        <input type="text" class="form-control" style="width:140px" value="${esc(s.name)}"
-          onchange="updateSupplierField(${idx},'name',this.value)">
-      </td>
-      <td class="num">
-        <input type="number" class="form-control" value="${s.brutTotal}"
-          placeholder="—" oninput="updateSupplierField(${idx},'brutTotal',this.value)">
-      </td>
-      <td class="num">
-        <input type="number" class="form-control" value="${s.signéTotal}"
-          placeholder="—" oninput="updateSupplierField(${idx},'signéTotal',this.value)">
-      </td>
-      <td>
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
-          <select class="form-control" style="width:90px" onchange="updateSupplierSplit(${idx},this.value)">
-            <option value="auto" ${!isManual ? 'selected' : ''}>Auto</option>
-            <option value="manuel" ${isManual ? 'selected' : ''}>Manuel</option>
-          </select>
-          ${isManual ? `
-            <div class="split-manual-inputs">
-              <input type="number" class="form-control" value="${adPct}" placeholder="ADM%"
-                oninput="updateSupplierManual(${idx},'adm',this.value)">
-              <span>% ADM</span>
-              <input type="number" class="form-control" value="${acPct}" placeholder="Act%"
-                oninput="updateSupplierManual(${idx},'active',this.value)">
-              <span>% Active</span>
-              <span id="splitSum-${idx}" style="font-size:11px; color:var(--text-muted)">= ${(parseFloat(adPct)||0)+(parseFloat(acPct)||0)}%</span>
-            </div>
-          ` : ''}
-        </div>
-      </td>
-      <td>
-        <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px; color:var(--danger); border-color:var(--danger)"
-          onclick="removeSupplier(${idx})">✕</button>
-      </td>
-    `;
-    body.appendChild(tr);
-  });
-}
-
-function updateSupplierField(idx, field, value) {
-  const md = getMonthData(currentMonth);
-  md.suppliers[idx][field] = value;
-  saveData();
-  renderMatriceTables();
-  renderCapacite();
-  renderFaisabilite();
-}
-
-function updateSupplierSplit(idx, mode) {
-  const md = getMonthData(currentMonth);
-  if (mode === 'manuel') {
-    md.suppliers[idx].manualSplit = { adm: 50, active: 50 };
-  } else {
-    md.suppliers[idx].manualSplit = null;
-  }
-  saveData();
-  renderSupplierInput();
-  renderMatriceTables();
-  renderCapacite();
-  renderFaisabilite();
-}
-
-function updateSupplierManual(idx, which, value) {
-  const md = getMonthData(currentMonth);
-  if (!md.suppliers[idx].manualSplit) md.suppliers[idx].manualSplit = { adm: 50, active: 50 };
-  md.suppliers[idx].manualSplit[which] = parseFloat(value) || 0;
-  saveData();
-  // Update sum label
-  const s = md.suppliers[idx].manualSplit;
-  const el = document.getElementById(`splitSum-${idx}`);
-  if (el) {
-    const sum = (s.adm || 0) + (s.active || 0);
-    el.textContent = `= ${sum}%`;
-    el.style.color = Math.abs(sum - 100) < 0.01 ? 'var(--success)' : 'var(--danger)';
-  }
-  renderMatriceTables();
-  renderCapacite();
-  renderFaisabilite();
-}
-
-function addSupplier() {
-  const md = getMonthData(currentMonth);
-  md.suppliers.push({ id: _nextId++, name: 'Nouveau', brutTotal: '', signéTotal: '', manualSplit: null });
-  saveData();
-  renderSupplierInput();
-  renderMatriceTables();
-}
-
-function removeSupplier(idx) {
-  const md = getMonthData(currentMonth);
-  md.suppliers.splice(idx, 1);
-  saveData();
-  renderSupplierInput();
-  renderMatriceTables();
-  renderCapacite();
-  renderFaisabilite();
-}
-
-/* ============================================================
-   CALCULATION ENGINE
-   ============================================================ */
-function calcSupplierRows(suppliers, admAgents, activeAgents, divisor) {
-  const total = admAgents + activeAgents;
-  const autoPoidsAdm = total > 0 ? admAgents / total : 0.5;
-  const autoPoidsActive = total > 0 ? activeAgents / total : 0.5;
-
-  return suppliers.map(s => {
-    const brut = parseFloat(s.brutTotal) || null;
-    const signe = parseFloat(s.signéTotal) || null;
-
-    let poidsAdm, poidsActive;
-    if (s.manualSplit) {
-      poidsAdm = (parseFloat(s.manualSplit.adm) || 0) / 100;
-      poidsActive = (parseFloat(s.manualSplit.active) || 0) / 100;
-    } else {
-      poidsAdm = autoPoidsAdm;
-      poidsActive = autoPoidsActive;
-    }
-
-    const div = divisor || 1;
-    return {
-      name: s.name,
-      brutTotal: brut !== null ? round1(brut / div) : null,
-      signéTotal: signe !== null ? round1(signe / div) : null,
-      admBrut: brut !== null ? round1(brut * poidsAdm / div) : null,
-      admSigne: signe !== null ? round1(signe * poidsAdm / div) : null,
-      activeBrut: brut !== null ? round1(brut * poidsActive / div) : null,
-      activeSigne: signe !== null ? round1(signe * poidsActive / div) : null,
-    };
-  });
-}
-
-function getDivisor(period) {
-  if (period === 'monthly') return 1;
-  if (period === 'weekly') return 4.33;
-  if (period === 'daily') return params.joursTravailles;
-  return 1;
-}
-
-function round1(v) { return v !== null ? Math.round(v * 10) / 10 : null; }
-
-function fmtNum(v) {
-  if (v === null || v === undefined || v === '') return '—';
-  return v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
-}
-
-/* ============================================================
-   MATRICE TABLES
-   ============================================================ */
-function renderMatriceTables() {
-  const md = getMonthData(currentMonth);
-  const admA = md.callCenters.adm.agents;
-  const actA = md.callCenters.active.agents;
-
-  // Compute totals helper
-  function sumOf(rows, field) {
-    const vals = rows.map(r => r[field]).filter(v => v !== null);
-    return vals.length > 0 ? round1(vals.reduce((a, b) => a + b, 0)) : null;
-  }
-
-  // Render GLOBAL
-  const gPeriod = viewPeriods.global;
-  const gDiv = getDivisor(gPeriod);
-  const gLabel = { monthly: 'Mensuel', weekly: 'Hebdomadaire', daily: 'Journalier' }[gPeriod];
-  document.getElementById('global-period-label').textContent = `Vue Globale – ${gLabel}`;
-
-  const gRows = calcSupplierRows(md.suppliers, admA, actA, gDiv);
-  const gBody = document.getElementById('globalTableBody');
-  gBody.innerHTML = '';
-  gRows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${esc(r.name)}</td>
-      <td class="num">${fmtNum(r.brutTotal)}</td>
-      <td class="num">${fmtNum(r.signéTotal)}</td>
-      <td class="num">${fmtNum(r.admBrut)}</td>
-      <td class="num">${fmtNum(r.admSigne)}</td>
-      <td class="num">${fmtNum(r.activeBrut)}</td>
-      <td class="num">${fmtNum(r.activeSigne)}</td>
-    `;
-    gBody.appendChild(tr);
-  });
-  // TOTAL
-  const gTot = document.createElement('tr');
-  gTot.className = 'total-row';
-  gTot.innerHTML = `
-    <td>TOTAL</td>
-    <td class="num">${fmtNum(sumOf(gRows,'brutTotal'))}</td>
-    <td class="num">${fmtNum(sumOf(gRows,'signéTotal'))}</td>
-    <td class="num">${fmtNum(sumOf(gRows,'admBrut'))}</td>
-    <td class="num">${fmtNum(sumOf(gRows,'admSigne'))}</td>
-    <td class="num">${fmtNum(sumOf(gRows,'activeBrut'))}</td>
-    <td class="num">${fmtNum(sumOf(gRows,'activeSigne'))}</td>
-  `;
-  gBody.appendChild(gTot);
-
-  // Render ADM
-  const aPeriod = viewPeriods.adm;
-  const aDiv = getDivisor(aPeriod);
-  const aLabel = { monthly: 'Mensuel', weekly: 'Hebdomadaire', daily: 'Journalier' }[aPeriod];
-  document.getElementById('adm-period-label').textContent = `ADM Value – ${aLabel}`;
-
-  const aRows = calcSupplierRows(md.suppliers, admA, actA, aDiv);
-  const aBody = document.getElementById('admTableBody');
-  aBody.innerHTML = '';
-  aRows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${esc(r.name)}</td>
-      <td class="num">${fmtNum(r.admBrut)}</td>
-      <td class="num">${fmtNum(r.admSigne)}</td>
-    `;
-    aBody.appendChild(tr);
-  });
-  const aTot = document.createElement('tr');
-  aTot.className = 'total-row';
-  aTot.innerHTML = `
-    <td>TOTAL</td>
-    <td class="num">${fmtNum(sumOf(aRows,'admBrut'))}</td>
-    <td class="num">${fmtNum(sumOf(aRows,'admSigne'))}</td>
-  `;
-  aBody.appendChild(aTot);
-
-  // Render ACTIVE
-  const cPeriod = viewPeriods.active;
-  const cDiv = getDivisor(cPeriod);
-  const cLabel = { monthly: 'Mensuel', weekly: 'Hebdomadaire', daily: 'Journalier' }[cPeriod];
-  document.getElementById('active-period-label').textContent = `Active Contact – ${cLabel}`;
-
-  const cRows = calcSupplierRows(md.suppliers, admA, actA, cDiv);
-  const cBody = document.getElementById('activeTableBody');
-  cBody.innerHTML = '';
-  cRows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${esc(r.name)}</td>
-      <td class="num">${fmtNum(r.activeBrut)}</td>
-      <td class="num">${fmtNum(r.activeSigne)}</td>
-    `;
-    cBody.appendChild(tr);
-  });
-  const cTot = document.createElement('tr');
-  cTot.className = 'total-row';
-  cTot.innerHTML = `
-    <td>TOTAL</td>
-    <td class="num">${fmtNum(sumOf(cRows,'activeBrut'))}</td>
-    <td class="num">${fmtNum(sumOf(cRows,'activeSigne'))}</td>
-  `;
-  cBody.appendChild(cTot);
-}
-
-/* ============================================================
-   MODULE CAPACITE
-   ============================================================ */
-function renderCapacite() {
-  const md = getMonthData(currentMonth);
-  const jours = params.joursTravailles;
-  const capaBrut = params.capaBrut;
-  const capaSigne = params.capaSigne;
-
-  document.getElementById('capaciteJoursLabel').textContent = `${jours} jours/mois`;
-
-  const admA = md.callCenters.adm.agents;
-  const actA = md.callCenters.active.agents;
-
-  // Compute total objectives from all suppliers
-  const total = admA + actA;
-  const autoPoidsAdm = total > 0 ? admA / total : 0.5;
-  const autoPoidsActive = total > 0 ? actA / total : 0.5;
-
-  let totAdmBrut = 0, totAdmSigne = 0, totActBrut = 0, totActSigne = 0;
-  md.suppliers.forEach(s => {
-    const brut = parseFloat(s.brutTotal) || 0;
-    const signe = parseFloat(s.signéTotal) || 0;
-    let pAdm, pAct;
-    if (s.manualSplit) {
-      pAdm = (parseFloat(s.manualSplit.adm) || 0) / 100;
-      pAct = (parseFloat(s.manualSplit.active) || 0) / 100;
-    } else {
-      pAdm = autoPoidsAdm;
-      pAct = autoPoidsActive;
-    }
-    totAdmBrut += brut * pAdm;
-    totAdmSigne += signe * pAdm;
-    totActBrut += brut * pAct;
-    totActSigne += signe * pAct;
-  });
-
-  const capaBrutAdm = admA * capaBrut * jours;
-  const capaSigneAdm = admA * capaSigne * jours;
-  const capaBrutAct = actA * capaBrut * jours;
-  const capaSigneAct = actA * capaSigne * jours;
-
-  const pctAdmBrut = capaBrutAdm > 0 ? (totAdmBrut / capaBrutAdm * 100).toFixed(1) : '—';
-  const pctAdmSigne = capaSigneAdm > 0 ? (totAdmSigne / capaSigneAdm * 100).toFixed(1) : '—';
-  const pctActBrut = capaBrutAct > 0 ? (totActBrut / capaBrutAct * 100).toFixed(1) : '—';
-  const pctActSigne = capaSigneAct > 0 ? (totActSigne / capaSigneAct * 100).toFixed(1) : '—';
-
-  const rows = [
-    {
-      cc: 'ADM Value', agents: admA,
-      capaBrut: capaBrutAdm, capaSigne: capaSigneAdm,
-      objBrut: round1(totAdmBrut), objSigne: round1(totAdmSigne),
-      pctBrut: pctAdmBrut, pctSigne: pctAdmSigne,
-    },
-    {
-      cc: 'Active Contact', agents: actA,
-      capaBrut: capaBrutAct, capaSigne: capaSigneAct,
-      objBrut: round1(totActBrut), objSigne: round1(totActSigne),
-      pctBrut: pctActBrut, pctSigne: pctActSigne,
-    },
-  ];
-
-  const body = document.getElementById('capaciteBody');
-  body.innerHTML = '';
-  rows.forEach(r => {
-    const pb = parseFloat(r.pctBrut);
-    const ps = parseFloat(r.pctSigne);
-    const colorBrut = isNaN(pb) ? '' : pb > 100 ? 'color:var(--danger);font-weight:700' : pb > 80 ? 'color:var(--warning);font-weight:700' : 'color:var(--success);font-weight:700';
-    const colorSigne = isNaN(ps) ? '' : ps > 100 ? 'color:var(--danger);font-weight:700' : ps > 80 ? 'color:var(--warning);font-weight:700' : 'color:var(--success);font-weight:700';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong>${esc(r.cc)}</strong></td>
-      <td class="num">${r.agents}</td>
-      <td class="num">${fmtNum(r.capaBrut)}</td>
-      <td class="num">${fmtNum(r.capaSigne)}</td>
-      <td class="num">${fmtNum(r.objBrut)}</td>
-      <td class="num">${fmtNum(r.objSigne)}</td>
-      <td class="num" style="${colorBrut}">${isNaN(pb) ? '—' : pb + '%'}</td>
-      <td class="num" style="${colorSigne}">${isNaN(ps) ? '—' : ps + '%'}</td>
-    `;
-    body.appendChild(tr);
-  });
-}
-
-/* ============================================================
-   MODULE FAISABILITE
-   ============================================================ */
-function renderFaisabilite() {
-  const md = getMonthData(currentMonth);
-  const jours = params.joursTravailles;
-  const capaBrut = params.capaBrut;
-  const capaSigne = params.capaSigne;
-
-  const admA = md.callCenters.adm.agents;
-  const actA = md.callCenters.active.agents;
-  const total = admA + actA;
-  const autoPoidsAdm = total > 0 ? admA / total : 0.5;
-  const autoPoidsActive = total > 0 ? actA / total : 0.5;
-
-  const capaBrutAdm = admA * capaBrut * jours;
-  const capaSigneAdm = admA * capaSigne * jours;
-  const capaBrutAct = actA * capaBrut * jours;
-  const capaSigneAct = actA * capaSigne * jours;
-
-  const body = document.getElementById('faisabiliteBody');
-  body.innerHTML = '';
-
-  md.suppliers.forEach(s => {
-    const brut = parseFloat(s.brutTotal) || 0;
-    const signe = parseFloat(s.signéTotal) || 0;
-    let pAdm, pAct;
-    if (s.manualSplit) {
-      pAdm = (parseFloat(s.manualSplit.adm) || 0) / 100;
-      pAct = (parseFloat(s.manualSplit.active) || 0) / 100;
-    } else {
-      pAdm = autoPoidsAdm;
-      pAct = autoPoidsActive;
-    }
-
-    const admObjBrut = round1(brut * pAdm);
-    const admObjSigne = round1(signe * pAdm);
-    const actObjBrut = round1(brut * pAct);
-    const actObjSigne = round1(signe * pAct);
-
-    const ccRows = [
-      { cc: 'ADM Value', objBrut: admObjBrut, objSigne: admObjSigne, capB: capaBrutAdm, capS: capaSigneAdm },
-      { cc: 'Active Contact', objBrut: actObjBrut, objSigne: actObjSigne, capB: capaBrutAct, capS: capaSigneAct },
-    ];
-
-    ccRows.forEach(r => {
-      const statBrut = getStatut(r.objBrut, r.capB);
-      const statSigne = getStatut(r.objSigne, r.capS);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${esc(s.name)}</td>
-        <td>${esc(r.cc)}</td>
-        <td class="num">${fmtNum(r.objBrut)}</td>
-        <td class="num">${fmtNum(r.objSigne)}</td>
-        <td class="num">${fmtNum(r.capB)}</td>
-        <td class="num">${fmtNum(r.capS)}</td>
-        <td>${badgeHTML(statBrut)}</td>
-        <td>${badgeHTML(statSigne)}</td>
-      `;
-      body.appendChild(tr);
+  const suppliers = data.suppliers.map(function(s, i){
+    const admW = s.splitMode === 'manual' ? s.splitAdm / 100 : autoAdmW;
+    const actW = 1 - admW;
+    const signe = Math.round(s.brut * s.txSig);
+    const facture = Math.round(signe * s.txFact);
+    const ca = Math.round(facture * s.valMoy);
+    const admBrut = Math.round(s.brut * admW);
+    const admSigne = Math.round(signe * admW);
+    const actBrut = s.brut - admBrut;
+    const actSigne = signe - admSigne;
+    return Object.assign({}, s, {
+      color: SUPPLIER_COLORS[i % SUPPLIER_COLORS.length],
+      signe: signe, facture: facture, ca: ca,
+      admBrut: admBrut, admSigne: admSigne, actBrut: actBrut, actSigne: actSigne,
+      brutH: Math.round(s.brut/WD), signeH: Math.round(signe/WD),
+      admBrutH: Math.round(admBrut/WD), admSigneH: Math.round(admSigne/WD),
+      actBrutH: Math.round(actBrut/WD), actSigneH: Math.round(actSigne/WD),
+      brutJ: Math.round(s.brut/wd), signeJ: Math.round(signe/wd),
+      admBrutJ: Math.round(admBrut/wd), admSigneJ: Math.round(admSigne/wd),
+      actBrutJ: Math.round(actBrut/wd), actSigneJ: Math.round(actSigne/wd)
     });
   });
-}
 
-function getStatut(obj, cap) {
-  if (!obj || !cap || cap === 0) return 'ok';
-  const pct = obj / cap;
-  if (pct <= 0.8) return 'ok';
-  if (pct <= 1.0) return 'limite';
-  return 'non';
-}
+  const keys = ['brut','signe','facture','ca','admBrut','admSigne','actBrut','actSigne',
+    'brutH','signeH','admBrutH','admSigneH','actBrutH','actSigneH',
+    'brutJ','signeJ','admBrutJ','admSigneJ','actBrutJ','actSigneJ'];
+  const T = suppliers.reduce(function(a, s){
+    keys.forEach(function(k){ a[k] = (a[k]||0) + s[k]; });
+    return a;
+  }, {name:'TOTAL'});
 
-function badgeHTML(statut) {
-  const map = {
-    ok: ['badge-ok', 'OK'],
-    limite: ['badge-limite', 'Limite'],
-    non: ['badge-non', 'Non atteignable'],
+  const capAdm = cc.adm.agents * prod * wd;
+  const capAct = cc.active.agents * prod * wd;
+  const capTotal = capAdm + capAct;
+  const uAdm = capAdm > 0 ? T.admBrut / capAdm * 100 : 0;
+  const uAct = capAct > 0 ? T.actBrut / capAct * 100 : 0;
+  const uTotal = capTotal > 0 ? T.brut / capTotal * 100 : 0;
+  const txSigGlobal = T.brut > 0 ? T.signe / T.brut : 0;
+  const txFactGlobal = T.signe > 0 ? T.facture / T.signe : 0;
+  const valMoyGlobal = T.facture > 0 ? T.ca / T.facture : 0;
+
+  return {
+    suppliers: suppliers, totals: T,
+    capacity: {adm: capAdm, active: capAct, total: capTotal},
+    utilization: {adm: uAdm, active: uAct, total: uTotal},
+    rates: {txSig: txSigGlobal, txFact: txFactGlobal, valMoy: valMoyGlobal},
+    cc: cc, settings: data.settings
   };
-  const [cls, label] = map[statut] || map.ok;
-  return `<span class="badge ${cls}">${label}</span>`;
 }
 
-/* ============================================================
-   MODULE SCENARIO
-   ============================================================ */
-let scenarioData = [];
-
-function initScenario() {
-  const md = getMonthData(currentMonth);
-  document.getElementById('scenarioAdmAgents').value = md.callCenters.adm.agents;
-  document.getElementById('scenarioActiveAgents').value = md.callCenters.active.agents;
-
-  // Init scenario data from main
-  scenarioData = md.suppliers.map(s => ({
-    id: s.id,
-    name: s.name,
-    brutTotal: s.brutTotal,
-    signéTotal: s.signéTotal,
-  }));
-
-  renderScenarioInput();
-  updateScenario();
+function feasibility(used, cap){
+  const p = cap > 0 ? used / cap * 100 : 0;
+  if(p > 100) return {cls:'danger', label:'Non atteignable', icon:'&#128308;', pct: Math.min(p,100)};
+  if(p > 85)  return {cls:'warning', label:'Limite', icon:'&#128992;', pct: p};
+  return {cls:'success', label:'OK', icon:'&#128994;', pct: p};
 }
 
-function renderScenarioInput() {
-  const body = document.getElementById('scenarioInputBody');
-  body.innerHTML = '';
-  scenarioData.forEach((s, idx) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${esc(s.name)}</td>
-      <td class="num">
-        <input type="number" class="form-control" value="${s.brutTotal}" placeholder="—"
-          style="width:90px" oninput="updateScenarioField(${idx},'brutTotal',this.value)">
-      </td>
-      <td class="num">
-        <input type="number" class="form-control" value="${s.signéTotal}" placeholder="—"
-          style="width:90px" oninput="updateScenarioField(${idx},'signéTotal',this.value)">
-      </td>
-    `;
-    body.appendChild(tr);
-  });
+function fmt(n){ return Math.round(n||0).toLocaleString('fr-FR'); }
+function fmtEur(n){ return Math.round(n||0).toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}); }
+function fmtPct(n){ return ((n||0)*100).toFixed(1)+'%'; }
+
+function feasBadge(used, cap){
+  const f = feasibility(used, cap);
+  return '<span class="badge '+f.cls+'">'+f.icon+' '+f.label+'</span>';
+}
+function feasBar(used, cap){
+  const f = feasibility(used, cap);
+  const pct = Math.min(f.pct, 100).toFixed(1);
+  return '<div class="progress-bar"><div class="progress-fill '+f.cls+'" style="width:'+pct+'%"></div></div><div style="font-size:10px;color:var(--muted);margin-top:2px">'+pct+'% utilis\u00e9</div>';
 }
 
-function updateScenarioField(idx, field, value) {
-  scenarioData[idx][field] = value;
-  updateScenario();
+function showTab(tab){
+  activeTab = tab;
+  document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
+  document.querySelectorAll('#app main section').forEach(function(s){ s.hidden = true; });
+  document.getElementById('tab-'+tab).hidden = false;
+  renderTab(tab);
 }
 
-function updateScenario() {
-  const admA = parseInt(document.getElementById('scenarioAdmAgents').value) || 0;
-  const actA = parseInt(document.getElementById('scenarioActiveAgents').value) || 0;
-
-  function sumOf(rows, field) {
-    const vals = rows.map(r => r[field]).filter(v => v !== null);
-    return vals.length > 0 ? round1(vals.reduce((a, b) => a + b, 0)) : null;
-  }
-
-  // Use manualSplit = null for scenario (always auto)
-  const fakeSuppliers = scenarioData.map(s => ({ ...s, manualSplit: null }));
-  const rows = calcSupplierRows(fakeSuppliers, admA, actA, 1);
-
-  // Global
-  const sg = document.getElementById('scenarioGlobalBody');
-  sg.innerHTML = '';
-  rows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${esc(r.name)}</td>
-      <td class="num">${fmtNum(r.brutTotal)}</td>
-      <td class="num">${fmtNum(r.signéTotal)}</td>
-      <td class="num">${fmtNum(r.admBrut)}</td>
-      <td class="num">${fmtNum(r.admSigne)}</td>
-      <td class="num">${fmtNum(r.activeBrut)}</td>
-      <td class="num">${fmtNum(r.activeSigne)}</td>
-    `;
-    sg.appendChild(tr);
-  });
-  const sgTot = document.createElement('tr');
-  sgTot.className = 'total-row';
-  sgTot.innerHTML = `
-    <td>TOTAL</td>
-    <td class="num">${fmtNum(sumOf(rows,'brutTotal'))}</td>
-    <td class="num">${fmtNum(sumOf(rows,'signéTotal'))}</td>
-    <td class="num">${fmtNum(sumOf(rows,'admBrut'))}</td>
-    <td class="num">${fmtNum(sumOf(rows,'admSigne'))}</td>
-    <td class="num">${fmtNum(sumOf(rows,'activeBrut'))}</td>
-    <td class="num">${fmtNum(sumOf(rows,'activeSigne'))}</td>
-  `;
-  sg.appendChild(sgTot);
-
-  // ADM
-  const sa = document.getElementById('scenarioAdmBody');
-  sa.innerHTML = '';
-  rows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${esc(r.name)}</td><td class="num">${fmtNum(r.admBrut)}</td><td class="num">${fmtNum(r.admSigne)}</td>`;
-    sa.appendChild(tr);
-  });
-  const saTot = document.createElement('tr');
-  saTot.className = 'total-row';
-  saTot.innerHTML = `<td>TOTAL</td><td class="num">${fmtNum(sumOf(rows,'admBrut'))}</td><td class="num">${fmtNum(sumOf(rows,'admSigne'))}</td>`;
-  sa.appendChild(saTot);
-
-  // Active
-  const sc = document.getElementById('scenarioActiveBody');
-  sc.innerHTML = '';
-  rows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${esc(r.name)}</td><td class="num">${fmtNum(r.activeBrut)}</td><td class="num">${fmtNum(r.activeSigne)}</td>`;
-    sc.appendChild(tr);
-  });
-  const scTot = document.createElement('tr');
-  scTot.className = 'total-row';
-  scTot.innerHTML = `<td>TOTAL</td><td class="num">${fmtNum(sumOf(rows,'activeBrut'))}</td><td class="num">${fmtNum(sumOf(rows,'activeSigne'))}</td>`;
-  sc.appendChild(scTot);
+function renderTab(tab){
+  if(tab === 'dashboard') renderDashboard();
+  else if(tab === 'config') renderConfig();
+  else if(tab === 'matrix') renderMatrix();
+  else if(tab === 'simulation') renderSimulation();
 }
 
-/* ============================================================
-   PARAMETRES
-   ============================================================ */
-function onParamChange() {
-  params.joursTravailles = parseInt(document.getElementById('paramJours').value) || 26;
-  params.capaBrut = parseInt(document.getElementById('paramCapaBrut').value) || 20;
-  params.capaSigne = parseInt(document.getElementById('paramCapaSigne').value) || 15;
-  params.modeRep = document.getElementById('paramModeRep').value;
-  saveData();
-  renderMatriceTables();
-  renderCapacite();
-  renderFaisabilite();
+function updateHeader(){
+  document.getElementById('monthDisplay').textContent = MONTHS_FR[currentMonth]+' '+currentYear;
+}
+function prevMonth(){
+  currentMonth--; if(currentMonth < 0){ currentMonth = 11; currentYear--; }
+  updateHeader(); renderTab(activeTab);
+}
+function nextMonth(){
+  currentMonth++; if(currentMonth > 11){ currentMonth = 0; currentYear++; }
+  updateHeader(); renderTab(activeTab);
 }
 
-/* ============================================================
-   DUPLICATION
-   ============================================================ */
-function openDuplicateModal() {
-  const modal = document.getElementById('duplicateModal');
-  document.getElementById('dupSource').value = currentMonth;
-  // Default target: next month
-  const [y, m] = currentMonth.split('-').map(Number);
-  const nextDate = new Date(y, m, 1);
-  const nextMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
-  document.getElementById('dupTarget').value = nextMonth;
-  checkDupWarning();
-  modal.classList.add('open');
+function destroyChart(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+function chartDefaults(){
+  Chart.defaults.color = '#64748b';
+  Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+  Chart.defaults.font = {family:'Inter', size:12};
 }
 
-function closeDuplicateModal() {
-  document.getElementById('duplicateModal').classList.remove('open');
-}
-
-function checkDupWarning() {
-  const target = document.getElementById('dupTarget').value;
-  const hasData = appData[target] !== undefined;
-  document.getElementById('dupWarning').classList.toggle('show', hasData);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const dupTarget = document.getElementById('dupTarget');
-  if (dupTarget) dupTarget.addEventListener('change', checkDupWarning);
-});
-
-function confirmDuplicate() {
-  const source = document.getElementById('dupSource').value;
-  const target = document.getElementById('dupTarget').value;
-  if (!target || target === source) {
-    alert('Veuillez choisir un mois cible différent du mois source.');
-    return;
-  }
-  const sourceData = getMonthData(source);
-  appData[target] = JSON.parse(JSON.stringify(sourceData));
-  saveData();
-  closeDuplicateModal();
-  showToast(`Mois dupliqué vers ${formatMonth(target)}`);
-}
-
-function reprendreMoisPrecedent() {
-  const [y, m] = currentMonth.split('-').map(Number);
-  const prevDate = new Date(y, m - 2, 1);
-  const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-
-  if (!appData[prevMonth]) {
-    alert(`Aucune donnée trouvée pour ${formatMonth(prevMonth)}.`);
-    return;
-  }
-
-  const hasCurrent = appData[currentMonth] !== undefined;
-  if (hasCurrent) {
-    openConfirm(
-      'Reprendre le mois précédent',
-      `Le mois en cours (${formatMonth(currentMonth)}) contient déjà des données. Voulez-vous les remplacer par celles de ${formatMonth(prevMonth)} ?`,
-      () => {
-        appData[currentMonth] = JSON.parse(JSON.stringify(appData[prevMonth]));
-        saveData();
-        renderAll();
-        showToast(`Données reprises depuis ${formatMonth(prevMonth)}`);
+function initBarChart(calc){
+  destroyChart('chartBar');
+  const ctx = document.getElementById('chartBar');
+  if(!ctx) return;
+  charts.chartBar = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: calc.suppliers.map(function(s){ return s.name; }),
+      datasets: [
+        {label:'Brut', data: calc.suppliers.map(function(s){return s.brut;}), backgroundColor:'rgba(99,102,241,0.7)', borderRadius:4},
+        {label:'Sign\u00e9', data: calc.suppliers.map(function(s){return s.signe;}), backgroundColor:'rgba(16,185,129,0.7)', borderRadius:4},
+        {label:'Factur\u00e9', data: calc.suppliers.map(function(s){return s.facture;}), backgroundColor:'rgba(245,158,11,0.7)', borderRadius:4}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top', labels:{boxWidth:12, padding:16}}},
+      scales:{
+        x:{grid:{display:false}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'}, ticks:{callback:function(v){return v>=1000?v/1000+'k':v;}}}
       }
-    );
-  } else {
-    appData[currentMonth] = JSON.parse(JSON.stringify(appData[prevMonth]));
-    saveData();
-    renderAll();
-    showToast(`Données reprises depuis ${formatMonth(prevMonth)}`);
-  }
+    }
+  });
 }
 
-/* ============================================================
-   CONFIRM MODAL
-   ============================================================ */
-let _confirmCallback = null;
-
-function openConfirm(title, text, cb) {
-  _confirmCallback = cb;
-  document.getElementById('confirmTitle').textContent = title;
-  document.getElementById('confirmText').textContent = text;
-  document.getElementById('confirmModal').classList.add('open');
-}
-
-function closeConfirmModal() {
-  document.getElementById('confirmModal').classList.remove('open');
-  _confirmCallback = null;
-}
-
-document.getElementById('confirmOkBtn').addEventListener('click', () => {
-  if (_confirmCallback) _confirmCallback();
-  closeConfirmModal();
-});
-
-/* ============================================================
-   PDF EXPORT
-   ============================================================ */
-function exportPDF() {
-  if (typeof window.jspdf === 'undefined') {
-    alert('jsPDF non chargé. Vérifiez votre connexion internet.');
-    return;
-  }
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-  const md = getMonthData(currentMonth);
-  const admA = md.callCenters.adm.agents;
-  const actA = md.callCenters.active.agents;
-  const monthLabel = formatMonth(currentMonth);
-
-  doc.setFontSize(16);
-  doc.setTextColor(31, 42, 59);
-  doc.text(`Tableau de Bord Production – ${monthLabel}`, 14, 16);
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text(`ADM: ${admA} agents | Active: ${actA} agents | ${params.joursTravailles} jours/mois`, 14, 22);
-
-  const periods = [
-    { key: 'monthly', label: 'Mensuel', div: 1 },
-    { key: 'weekly', label: 'Hebdomadaire', div: 4.33 },
-    { key: 'daily', label: 'Journalier', div: params.joursTravailles },
-  ];
-
-  const views = ['global', 'adm', 'active'];
-  const viewLabels = { global: 'Vue Globale', adm: 'ADM Value', active: 'Active Contact' };
-
-  let yPos = 28;
-  let firstPage = true;
-
-  function sumOf(rows, field) {
-    const vals = rows.map(r => r[field]).filter(v => v !== null);
-    return vals.length > 0 ? round1(vals.reduce((a, b) => a + b, 0)) : null;
-  }
-
-  function fmtPDF(v) {
-    if (v === null || v === undefined || v === '') return '—';
-    return v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
-  }
-
-  periods.forEach(period => {
-    const rows = calcSupplierRows(md.suppliers, admA, actA, period.div);
-
-    views.forEach(view => {
-      if (!firstPage) {
-        doc.addPage();
-        yPos = 14;
+function initDoughnutChart(calc){
+  destroyChart('chartDoughnut');
+  const ctx = document.getElementById('chartDoughnut');
+  if(!ctx) return;
+  charts.chartDoughnut = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: calc.suppliers.map(function(s){return s.name;}),
+      datasets:[{
+        data: calc.suppliers.map(function(s){return s.brut;}),
+        backgroundColor: SUPPLIER_COLORS,
+        borderWidth: 2, borderColor:'#111116'
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'65%',
+      plugins:{
+        legend:{position:'bottom', labels:{boxWidth:10, padding:12, font:{size:11}}},
+        tooltip:{callbacks:{label:function(ctx){
+          const t = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+          return ctx.label+': '+fmt(ctx.raw)+' ('+(ctx.raw/t*100).toFixed(1)+'%)';
+        }}}
       }
-      firstPage = false;
+    }
+  });
+}
 
-      doc.setFontSize(13);
-      doc.setTextColor(31, 42, 59);
-      doc.text(`${viewLabels[view]} – ${period.label}`, 14, yPos + 6);
-      yPos += 10;
-
-      let head, body;
-
-      if (view === 'global') {
-        head = [['Fournisseur', 'Brut Total', 'Signé Total', 'ADM Brut', 'ADM Signé', 'Active Brut', 'Active Signé']];
-        body = rows.map(r => [
-          r.name,
-          fmtPDF(r.brutTotal), fmtPDF(r.signéTotal),
-          fmtPDF(r.admBrut), fmtPDF(r.admSigne),
-          fmtPDF(r.activeBrut), fmtPDF(r.activeSigne),
-        ]);
-        body.push([
-          'TOTAL',
-          fmtPDF(sumOf(rows,'brutTotal')), fmtPDF(sumOf(rows,'signéTotal')),
-          fmtPDF(sumOf(rows,'admBrut')), fmtPDF(sumOf(rows,'admSigne')),
-          fmtPDF(sumOf(rows,'activeBrut')), fmtPDF(sumOf(rows,'activeSigne')),
-        ]);
-      } else if (view === 'adm') {
-        head = [['Fournisseur', 'Brut', 'Signé']];
-        body = rows.map(r => [r.name, fmtPDF(r.admBrut), fmtPDF(r.admSigne)]);
-        body.push(['TOTAL', fmtPDF(sumOf(rows,'admBrut')), fmtPDF(sumOf(rows,'admSigne'))]);
-      } else {
-        head = [['Fournisseur', 'Brut', 'Signé']];
-        body = rows.map(r => [r.name, fmtPDF(r.activeBrut), fmtPDF(r.activeSigne)]);
-        body.push(['TOTAL', fmtPDF(sumOf(rows,'activeBrut')), fmtPDF(sumOf(rows,'activeSigne'))]);
+function initSimChart(orig, sim){
+  destroyChart('chartSimComparison');
+  const ctx = document.getElementById('chartSimComparison');
+  if(!ctx) return;
+  charts.chartSimComparison = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: orig.map(function(s){return s.name;}),
+      datasets:[
+        {label:'Original', data: orig.map(function(s){return s.brut;}), backgroundColor:'rgba(99,102,241,0.4)', borderRadius:4},
+        {label:'Simul\u00e9', data: sim.map(function(s){return s.brut;}), backgroundColor:'rgba(99,102,241,0.85)', borderRadius:4}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top', labels:{boxWidth:12}}},
+      scales:{
+        x:{grid:{display:false}},
+        y:{grid:{color:'rgba(255,255,255,0.05)'}}
       }
+    }
+  });
+}
 
-      const totalRowIdx = body.length - 1;
+function renderDashboard(){
+  const calc = calcAll();
+  const T = calc.totals;
+  const cap = calc.capacity;
+  const u = calc.utilization;
+  const r = calc.rates;
+  const cc = calc.cc;
+  const s = calc.settings;
 
-      doc.autoTable({
-        head,
-        body,
-        startY: yPos,
-        theme: 'grid',
-        headStyles: {
-          fillColor: [79, 142, 247],
-          textColor: 255,
-          fontStyle: 'bold',
-          fontSize: 9,
-        },
-        bodyStyles: { fontSize: 9 },
-        alternateRowStyles: { fillColor: [248, 250, 255] },
-        didParseCell: (data) => {
-          if (data.section === 'body' && data.row.index === totalRowIdx) {
-            data.cell.styles.fillColor = [232, 240, 254];
-            data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.lineColor = [79, 142, 247];
-            data.cell.styles.lineWidth = { top: 0.5, bottom: 0, left: 0, right: 0 };
-          }
-        },
-        margin: { left: 14, right: 14 },
-      });
+  const sorted = calc.suppliers.slice().sort(function(a,b){return a.priority-b.priority;});
+  const admCapPer = cap.adm / Math.max(calc.suppliers.length,1);
+  const actCapPer = cap.active / Math.max(calc.suppliers.length,1);
 
-      yPos = doc.lastAutoTable.finalY + 8;
+  const prioLabels = ['','&#11014; Haute','&#10145; Moyenne','&#11015; Basse'];
+
+  let feasRows = sorted.map(function(s){
+    return '<tr>'
+      +'<td><span class="supplier-name"><span class="supplier-dot" style="background:'+s.color+'"></span>'+s.name+'</span></td>'
+      +'<td class="num">'+fmt(s.brut)+'</td>'
+      +'<td class="num">'+fmt(s.signe)+'</td>'
+      +'<td class="num">'+fmt(s.facture)+'</td>'
+      +'<td class="num">'+fmtEur(s.ca)+'</td>'
+      +'<td>'+feasBadge(s.admBrut,admCapPer)+' <span style="font-size:11px;color:var(--muted)">'+fmt(s.admBrut)+'</span></td>'
+      +'<td>'+feasBadge(s.actBrut,actCapPer)+' <span style="font-size:11px;color:var(--muted)">'+fmt(s.actBrut)+'</span></td>'
+      +'<td><span class="prio-'+s.priority+'">'+(prioLabels[s.priority]||s.priority)+'</span></td>'
+      +'</tr>';
+  }).join('');
+
+  document.getElementById('tab-dashboard').innerHTML =
+    '<div class="page-header">'
+    +'<h2>Tableau de bord</h2>'
+    +'<span class="month-badge">'+MONTHS_FR[currentMonth]+' '+currentYear+'</span>'
+    +'</div>'
+
+    +'<div class="kpi-grid">'
+    +'<div class="kpi-card"><div class="kpi-icon">&#127919;</div><div class="kpi-label">Objectif Brut</div><div class="kpi-value">'+fmt(T.brut)+'</div><div class="kpi-sub">contacts bruts / mois</div></div>'
+    +'<div class="kpi-card"><div class="kpi-icon">&#9997;&#65039;</div><div class="kpi-label">Objectif Sign\u00e9</div><div class="kpi-value">'+fmt(T.signe)+'</div><div class="kpi-sub">contrats sign\u00e9s / mois</div></div>'
+    +'<div class="kpi-card"><div class="kpi-icon">&#9989;</div><div class="kpi-label">Objectif Factur\u00e9</div><div class="kpi-value">'+fmt(T.facture)+'</div><div class="kpi-sub">contrats factur\u00e9s / mois</div></div>'
+    +'<div class="kpi-card"><div class="kpi-icon">&#128182;</div><div class="kpi-label">CA Projet\u00e9</div><div class="kpi-value" style="font-size:22px">'+fmtEur(T.ca)+'</div><div class="kpi-sub">chiffre d\'affaires pr\u00e9visionnel</div></div>'
+    +'</div>'
+
+    +'<div class="info-row">'
+    +'<div class="info-chip">&#128197; '+s.workingDays+' jours ouvrés</div>'
+    +'<div class="info-chip">&#128198; 4,33 semaines</div>'
+    +'<div class="info-chip">&#9997;&#65039; Tx signature global&nbsp;: '+fmtPct(r.txSig)+'</div>'
+    +'<div class="info-chip">&#9989; Tx facturation global&nbsp;: '+fmtPct(r.txFact)+'</div>'
+    +'<div class="info-chip">&#128182; Valeur moyenne&nbsp;: '+fmtEur(r.valMoy)+'</div>'
+    +'<div class="info-chip">&#127970; '+(cc.adm.agents+cc.active.agents)+' agents total</div>'
+    +'</div>'
+
+    +'<div class="cc-row">'
+    // ADM card
+    +'<div class="cc-card">'
+    +'<div class="cc-header"><div><div class="cc-name">ADM Value</div><div class="cc-agents">'+cc.adm.agents+' agents &middot; '+cc.adm.hoursPerDay+'h/jour</div></div>'+feasBadge(T.admBrut,cap.adm)+'</div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Capacit\u00e9 th\u00e9orique</div><div class="cc-stat-value">'+fmt(cap.adm)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Objectif assign\u00e9</div><div class="cc-stat-value">'+fmt(T.admBrut)+'</div><div class="cc-stat-sub">bruts &middot; '+fmt(T.admSigne)+' sign\u00e9s</div></div>'
+    +feasBar(T.admBrut,cap.adm)
+    +'</div>'
+    // Active card
+    +'<div class="cc-card">'
+    +'<div class="cc-header"><div><div class="cc-name">Active Contact</div><div class="cc-agents">'+cc.active.agents+' agents &middot; '+cc.active.hoursPerDay+'h/jour</div></div>'+feasBadge(T.actBrut,cap.active)+'</div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Capacit\u00e9 th\u00e9orique</div><div class="cc-stat-value">'+fmt(cap.active)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Objectif assign\u00e9</div><div class="cc-stat-value">'+fmt(T.actBrut)+'</div><div class="cc-stat-sub">bruts &middot; '+fmt(T.actSigne)+' sign\u00e9s</div></div>'
+    +feasBar(T.actBrut,cap.active)
+    +'</div>'
+    // Total card
+    +'<div class="cc-card">'
+    +'<div class="cc-header"><div><div class="cc-name">Capacit\u00e9 Globale</div><div class="cc-agents">'+(cc.adm.agents+cc.active.agents)+' agents combin\u00e9s</div></div>'+feasBadge(T.brut,cap.total)+'</div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Capacit\u00e9 totale</div><div class="cc-stat-value">'+fmt(cap.total)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Objectif total</div><div class="cc-stat-value">'+fmt(T.brut)+'</div><div class="cc-stat-sub">soit '+u.total.toFixed(1)+'% de la capacit\u00e9</div></div>'
+    +feasBar(T.brut,cap.total)
+    +'</div>'
+    +'</div>'
+
+    +'<div class="charts-row">'
+    +'<div class="chart-card"><h3>Production par fournisseur</h3><div class="chart-container"><canvas id="chartBar"></canvas></div></div>'
+    +'<div class="chart-card"><h3>Mix fournisseurs (Brut)</h3><div class="chart-container"><canvas id="chartDoughnut"></canvas></div></div>'
+    +'</div>'
+
+    +'<div class="section-card">'
+    +'<h3>Faisabilit\u00e9 par fournisseur</h3>'
+    +'<table class="data-table" style="margin-top:8px">'
+    +'<thead><tr>'
+    +'<th>Fournisseur</th><th class="num">Brut</th><th class="num">Sign\u00e9</th><th class="num">Factur\u00e9</th><th class="num">CA</th>'
+    +'<th>ADM Value</th><th>Active Contact</th><th>Priorit\u00e9</th>'
+    +'</tr></thead>'
+    +'<tbody>'+feasRows+'</tbody>'
+    +'</table>'
+    +'</div>';
+
+  setTimeout(function(){
+    initBarChart(calc);
+    initDoughnutChart(calc);
+  }, 50);
+}
+
+function renderConfig(){
+  const data = getCurrentData();
+  const cc = getCCData();
+  const calc = calcAll();
+  const s = data.settings;
+
+  let supplierRows = calc.suppliers.map(function(sup){
+    const splitCtrl = sup.splitMode === 'manual'
+      ? '<input class="input w-sm" type="number" value="'+sup.splitAdm+'" min="0" max="100" onchange="updateSupplier(\''+sup.id+'\',\'splitAdm\',+this.value)"><span style="margin-left:2px;color:var(--muted);font-size:11px">%</span>'
+      : '<span style="font-size:11px;color:var(--muted)">prop. agents</span>';
+    return '<tr>'
+      +'<td><input class="input-name" value="'+sup.name+'" onchange="updateSupplier(\''+sup.id+'\',\'name\',this.value)"></td>'
+      +'<td><input class="input w-md" type="number" value="'+sup.brut+'" min="0" onchange="updateSupplier(\''+sup.id+'\',\'brut\',+this.value)"></td>'
+      +'<td><input class="input w-sm" type="number" value="'+(sup.txSig*100).toFixed(0)+'" min="0" max="100" step="1" onchange="updateSupplier(\''+sup.id+'\',\'txSig\',+this.value/100)"><span style="margin-left:4px;color:var(--muted)">%</span></td>'
+      +'<td><input class="input w-sm" type="number" value="'+(sup.txFact*100).toFixed(0)+'" min="0" max="100" step="1" onchange="updateSupplier(\''+sup.id+'\',\'txFact\',+this.value/100)"><span style="margin-left:4px;color:var(--muted)">%</span></td>'
+      +'<td><input class="input w-md" type="number" value="'+sup.valMoy+'" min="0" onchange="updateSupplier(\''+sup.id+'\',\'valMoy\',+this.value)"></td>'
+      +'<td><span class="computed">'+fmt(sup.signe)+'</span></td>'
+      +'<td><span class="computed">'+fmt(sup.facture)+'</span></td>'
+      +'<td><span class="computed" style="color:var(--success)">'+fmtEur(sup.ca)+'</span></td>'
+      +'<td><select class="input w-sm" onchange="updateSupplier(\''+sup.id+'\',\'priority\',+this.value)">'
+      +'<option value="1" '+(sup.priority===1?'selected':'')+'>&#11014; Haute</option>'
+      +'<option value="2" '+(sup.priority===2?'selected':'')+'>&#10145; Moy.</option>'
+      +'<option value="3" '+(sup.priority===3?'selected':'')+'>&#11015; Basse</option>'
+      +'</select></td>'
+      +'<td>'
+      +'<select class="input" style="width:80px;margin-right:4px" onchange="updateSupplier(\''+sup.id+'\',\'splitMode\',this.value)">'
+      +'<option value="auto" '+(sup.splitMode==='auto'?'selected':'')+'>Auto</option>'
+      +'<option value="manual" '+(sup.splitMode==='manual'?'selected':'')+'>Manuel</option>'
+      +'</select>'+splitCtrl+'</td>'
+      +'<td><button class="btn btn-danger btn-sm" onclick="removeSupplier(\''+sup.id+'\')" title="Supprimer">&#x2715;</button></td>'
+      +'</tr>';
+  }).join('');
+
+  document.getElementById('tab-config').innerHTML =
+    '<div class="page-header"><h2>Configuration</h2><span class="month-badge">'+MONTHS_FR[currentMonth]+' '+currentYear+'</span></div>'
+
+    +'<div class="cc-config-row">'
+    +'<div class="cc-config-card"><h3>&#127970; ADM Value</h3>'
+    +'<div class="form-row"><label>Nombre d\'agents</label><input class="input w-md" type="number" id="admAgents" value="'+cc.adm.agents+'" min="1" max="500" onchange="updateCC()"></div>'
+    +'<div class="form-row"><label>Heures / jour / agent</label><input class="input w-md" type="number" id="admHours" value="'+cc.adm.hoursPerDay+'" min="1" max="12" step="0.5" onchange="updateCC()"></div>'
+    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Capacit\u00e9 mensuelle estim\u00e9e</div><div style="font-size:20px;font-weight:700;color:var(--primary)">'+fmt(calc.capacity.adm)+'</div><div style="font-size:11px;color:var(--muted)">contacts bruts</div></div>'
+    +'</div>'
+
+    +'<div class="cc-config-card"><h3>&#127970; Active Contact</h3>'
+    +'<div class="form-row"><label>Nombre d\'agents</label><input class="input w-md" type="number" id="actAgents" value="'+cc.active.agents+'" min="1" max="500" onchange="updateCC()"></div>'
+    +'<div class="form-row"><label>Heures / jour / agent</label><input class="input w-md" type="number" id="actHours" value="'+cc.active.hoursPerDay+'" min="1" max="12" step="0.5" onchange="updateCC()"></div>'
+    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Capacit\u00e9 mensuelle estim\u00e9e</div><div style="font-size:20px;font-weight:700;color:var(--primary)">'+fmt(calc.capacity.active)+'</div><div style="font-size:11px;color:var(--muted)">contacts bruts</div></div>'
+    +'</div>'
+
+    +'<div class="cc-config-card"><h3>&#9881;&#65039; Param\u00e8tres g\u00e9n\u00e9raux</h3>'
+    +'<div class="form-row"><label>Jours ouvrés / mois (lun-sam)</label><input class="input w-md" type="number" id="workingDays" value="'+s.workingDays+'" min="1" max="31" onchange="updateSettings()"></div>'
+    +'<div class="form-row"><label>Productivit\u00e9 (contacts/agent/jour)</label><input class="input w-md" type="number" id="productivity" value="'+s.productivityPerAgent+'" min="1" max="200" onchange="updateSettings()"></div>'
+    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Diviseur hebdomadaire</div><div style="font-size:20px;font-weight:700;color:var(--primary)">\u00f7 4,33</div><div style="font-size:11px;color:var(--muted)">fixe (standard industrie)</div></div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="section-card">'
+    +'<div class="section-header"><h3>Fournisseurs &mdash; '+MONTHS_FR[currentMonth]+' '+currentYear+'</h3><button class="btn btn-primary btn-sm" onclick="addSupplier()">+ Ajouter fournisseur</button></div>'
+    +'<div style="overflow-x:auto">'
+    +'<table class="config-table">'
+    +'<thead><tr>'
+    +'<th style="min-width:140px">Fournisseur</th><th>Brut / mois</th><th>Tx Signature</th><th>Tx Facturation</th><th>Valeur moy. (&euro;)</th>'
+    +'<th>Sign\u00e9 calc.</th><th>Factur\u00e9 calc.</th><th>CA projet\u00e9</th><th>Priorit\u00e9</th><th>R\u00e9partition ADM %</th><th></th>'
+    +'</tr></thead>'
+    +'<tbody>'+supplierRows+'</tbody>'
+    +'<tfoot><tr class="row-total">'
+    +'<td><strong>TOTAL</strong></td>'
+    +'<td><span class="computed">'+fmt(calc.totals.brut)+'</span></td>'
+    +'<td colspan="3" style="color:var(--muted);font-size:11px">&mdash; calcul\u00e9s &mdash;</td>'
+    +'<td><span class="computed">'+fmt(calc.totals.signe)+'</span></td>'
+    +'<td><span class="computed">'+fmt(calc.totals.facture)+'</span></td>'
+    +'<td><span class="computed" style="color:var(--success)">'+fmtEur(calc.totals.ca)+'</span></td>'
+    +'<td colspan="3"></td>'
+    +'</tr></tfoot>'
+    +'</table></div>'
+    +'</div>'
+
+    +'<div class="section-card">'
+    +'<div class="section-header"><h3>Duplication de mois</h3></div>'
+    +'<p style="font-size:13px;color:var(--muted);margin-bottom:16px">Copiez tous les objectifs fournisseurs d\'un mois vers un autre.</p>'
+    +'<div class="dup-row">'
+    +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Mois source</label><select id="dupSource" class="input">'+genMonthOptions(0)+'</select></div>'
+    +'<div style="color:var(--muted);font-size:20px;padding-top:16px">&rarr;</div>'
+    +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Mois cible</label><select id="dupTarget" class="input">'+genMonthOptions(1)+'</select></div>'
+    +'<div style="padding-top:16px"><button class="btn btn-primary" onclick="duplicateMonth()">&#128203; Dupliquer</button></div>'
+    +'<div style="padding-top:16px"><button class="btn btn-outline" onclick="copyPrevMonth()">&larrhk; Reprendre mois pr\u00e9c\u00e9dent</button></div>'
+    +'</div>'
+    +'</div>';
+}
+
+function genMonthOptions(offset){
+  offset = offset || 0;
+  let html = '';
+  for(let m = 0; m < 12; m++){
+    const mo = (currentMonth + offset + m) % 12;
+    const yr = currentYear + Math.floor((currentMonth + offset + m) / 12);
+    const key = getMonthKey(yr, mo);
+    const sel = (m === 0) ? 'selected' : '';
+    html += '<option value="'+key+'" '+sel+'>'+MONTHS_FR[mo]+' '+yr+'</option>';
+  }
+  return html;
+}
+
+function renderMatrix(){
+  const calc = calcAll();
+
+  function matRows(view, period){
+    const sup = calc.suppliers;
+    const T = calc.totals;
+    const brutKey    = period==='mensuel' ? 'brut'    : period==='hebdo' ? 'brutH'    : 'brutJ';
+    const signeKey   = period==='mensuel' ? 'signe'   : period==='hebdo' ? 'signeH'   : 'signeJ';
+    const admBrutKey = period==='mensuel' ? 'admBrut' : period==='hebdo' ? 'admBrutH' : 'admBrutJ';
+    const admSigneKey= period==='mensuel' ? 'admSigne': period==='hebdo' ? 'admSigneH': 'admSigneJ';
+    const actBrutKey = period==='mensuel' ? 'actBrut' : period==='hebdo' ? 'actBrutH' : 'actBrutJ';
+    const actSigneKey= period==='mensuel' ? 'actSigne': period==='hebdo' ? 'actSigneH': 'actSigneJ';
+
+    if(view === 'global'){
+      let rows = sup.map(function(s){
+        return '<tr>'
+          +'<td><span class="supplier-name"><span class="supplier-dot" style="background:'+s.color+'"></span>'+s.name+'</span></td>'
+          +'<td class="num">'+fmt(s[brutKey])+'</td><td class="num">'+fmt(s[signeKey])+'</td>'
+          +'<td class="num">'+fmt(s[admBrutKey])+'</td><td class="num">'+fmt(s[admSigneKey])+'</td>'
+          +'<td class="num">'+fmt(s[actBrutKey])+'</td><td class="num">'+fmt(s[actSigneKey])+'</td>'
+          +'</tr>';
+      }).join('');
+      return '<table class="data-table">'
+        +'<thead><tr><th>Fournisseur</th><th class="num">Brut</th><th class="num">Sign\u00e9</th><th class="num">ADM Brut</th><th class="num">ADM Sign\u00e9</th><th class="num">Active Brut</th><th class="num">Active Sign\u00e9</th></tr></thead>'
+        +'<tbody>'+rows+'</tbody>'
+        +'<tfoot><tr class="row-total"><td><strong>TOTAL</strong></td>'
+        +'<td class="num">'+fmt(T[brutKey])+'</td><td class="num">'+fmt(T[signeKey])+'</td>'
+        +'<td class="num">'+fmt(T[admBrutKey])+'</td><td class="num">'+fmt(T[admSigneKey])+'</td>'
+        +'<td class="num">'+fmt(T[actBrutKey])+'</td><td class="num">'+fmt(T[actSigneKey])+'</td>'
+        +'</tr></tfoot></table>';
+    }
+    const iAdm = view === 'adm';
+    const bk = iAdm ? admBrutKey : actBrutKey;
+    const sk = iAdm ? admSigneKey : actSigneKey;
+    const tb = iAdm ? T[admBrutKey] : T[actBrutKey];
+    const ts = iAdm ? T[admSigneKey] : T[actSigneKey];
+    let rows2 = sup.map(function(s){
+      return '<tr>'
+        +'<td><span class="supplier-name"><span class="supplier-dot" style="background:'+s.color+'"></span>'+s.name+'</span></td>'
+        +'<td class="num">'+fmt(s[bk])+'</td><td class="num">'+fmt(s[sk])+'</td>'
+        +'</tr>';
+    }).join('');
+    return '<table class="data-table">'
+      +'<thead><tr><th>Fournisseur</th><th class="num">Brut</th><th class="num">Sign\u00e9</th></tr></thead>'
+      +'<tbody>'+rows2+'</tbody>'
+      +'<tfoot><tr class="row-total"><td><strong>TOTAL</strong></td><td class="num">'+fmt(tb)+'</td><td class="num">'+fmt(ts)+'</td></tr></tfoot>'
+      +'</table>';
+  }
+
+  const periodLabel = {
+    'mensuel': 'Mensuel',
+    'hebdo': 'Hebdomadaire (\u00f74,33)',
+    'journalier': 'Journalier (\u00f7'+calc.settings.workingDays+' jours)'
+  };
+  const viewLabel = {'global':'Vue Globale','adm':'ADM Value','active':'Active Contact'};
+
+  const subNavBtns = ['global','adm','active'].map(function(v){
+    const lbl = v==='global'?'&#127760; Global':v==='adm'?'&#127970; ADM Value':'&#127970; Active Contact';
+    return '<button class="sub-nav-btn'+(matrixView===v?' active':'')+'" onclick="setMatrixView(\''+v+'\')">'+lbl+'</button>';
+  }).join('');
+  const periodBtns = ['mensuel','hebdo','journalier'].map(function(p){
+    const lbl = p==='mensuel'?'&#128197; Mensuel':p==='hebdo'?'&#128198; Hebdomadaire':'&#128202; Journalier';
+    return '<button class="period-btn'+(matrixPeriod===p?' active':'')+'" onclick="setMatrixPeriod(\''+p+'\')">'+lbl+'</button>';
+  }).join('');
+
+  let extra = '';
+  if(matrixPeriod === 'hebdo'){
+    extra = '<span class="info-chip">Base\u00a0: mensuel \u00f7 4,33</span>';
+  } else if(matrixPeriod === 'journalier'){
+    extra = '<span class="info-chip">Base\u00a0: mensuel \u00f7 '+calc.settings.workingDays+' jours ouvrés (lun-sam)</span>';
+  }
+
+  let summaryBlock = '';
+  if(matrixPeriod === 'mensuel'){
+    summaryBlock = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+      +'<div class="section-card" style="margin-bottom:0"><div class="section-header"><h3>R\u00e9sum\u00e9 Hebdomadaire</h3></div>'+matRows(matrixView,'hebdo')+'</div>'
+      +'<div class="section-card" style="margin-bottom:0"><div class="section-header"><h3>R\u00e9sum\u00e9 Journalier</h3></div>'+matRows(matrixView,'journalier')+'</div>'
+      +'</div>';
+  }
+
+  document.getElementById('tab-matrix').innerHTML =
+    '<div class="page-header"><h2>Matrice de production</h2><span class="month-badge">'+MONTHS_FR[currentMonth]+' '+currentYear+'</span></div>'
+    +'<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:20px">'
+    +'<div class="sub-nav">'+subNavBtns+'</div>'
+    +'<div class="period-tabs">'+periodBtns+'</div>'
+    +'</div>'
+    +'<div class="section-card">'
+    +'<div class="section-header"><h3>'+viewLabel[matrixView]+' &mdash; '+periodLabel[matrixPeriod]+'</h3>'+extra+'</div>'
+    +matRows(matrixView, matrixPeriod)
+    +'</div>'
+    +summaryBlock;
+}
+
+let simMultipliers = {};
+let simAdmAgents = 0, simActAgents = 0;
+let simInitialized = false;
+
+function initSim(){
+  const calc = calcAll();
+  const cc = getCCData();
+  simAdmAgents = cc.adm.agents;
+  simActAgents = cc.active.agents;
+  calc.suppliers.forEach(function(s){ simMultipliers[s.id] = 100; });
+  simInitialized = true;
+}
+
+function renderSimulation(){
+  if(!simInitialized) initSim();
+  const calc = calcAll();
+  const cc = getCCData();
+  const data = getCurrentData();
+  const wd = data.settings.workingDays || 26;
+  const prod = data.settings.productivityPerAgent || 20;
+  const totalAgents = simAdmAgents + simActAgents;
+  const admW = totalAgents > 0 ? simAdmAgents / totalAgents : 0.5;
+
+  const calcedSim = data.suppliers.map(function(s, i){
+    const mult = simMultipliers[s.id] || 100;
+    const brut = Math.round(s.brut * mult / 100);
+    const aW = s.splitMode === 'manual' ? s.splitAdm / 100 : admW;
+    const signe = Math.round(brut * s.txSig);
+    const facture = Math.round(signe * s.txFact);
+    const ca = Math.round(facture * s.valMoy);
+    return Object.assign({}, s, {
+      color: SUPPLIER_COLORS[i % SUPPLIER_COLORS.length],
+      brut: brut, signe: signe, facture: facture, ca: ca,
+      admBrut: Math.round(brut * aW), actBrut: Math.round(brut * (1 - aW))
     });
   });
 
-  // Footer on all pages
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    doc.text(
-      `Page ${i} / ${pageCount} – Exporté le ${new Date().toLocaleDateString('fr-FR')}`,
-      doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 8,
-      { align: 'center' }
-    );
+  const simT = calcedSim.reduce(function(a, s){
+    ['brut','signe','facture','ca','admBrut','actBrut'].forEach(function(k){ a[k] = (a[k]||0) + s[k]; });
+    return a;
+  }, {});
+
+  const simCapAdm = simAdmAgents * prod * wd;
+  const simCapAct = simActAgents * prod * wd;
+  const T = calc.totals;
+
+  function delta(sim, orig){
+    const d = sim - orig;
+    const pct = orig > 0 ? d / orig * 100 : 0;
+    const cls = d >= 0 ? 'delta-pos' : 'delta-neg';
+    return '<span class="'+cls+'">'+(d>=0?'+':'')+fmt(d)+' ('+(pct>=0?'+':'')+pct.toFixed(1)+'%)</span>';
+  }
+  function deltaEur(sim, orig){
+    const d = sim - orig;
+    const pct = orig > 0 ? d / orig * 100 : 0;
+    const cls = d >= 0 ? 'delta-pos' : 'delta-neg';
+    return '<span class="'+cls+'">'+(d>=0?'+':'')+fmtEur(d)+' ('+(pct>=0?'+':'')+pct.toFixed(1)+'%)</span>';
   }
 
-  doc.save(`tdb-production-${currentMonth}.pdf`);
+  let volSliders = calc.suppliers.map(function(s){
+    const mult = simMultipliers[s.id] || 100;
+    const dotStyle = 'width:8px;height:8px;border-radius:50%;background:'+s.color+';flex-shrink:0;display:inline-block';
+    return '<div class="slider-row">'
+      +'<div class="slider-label">'
+      +'<span class="slider-name" style="display:flex;align-items:center;gap:6px"><span style="'+dotStyle+'"></span>'+s.name+'</span>'
+      +'<span class="slider-val" id="simVol_'+s.id+'">'+mult+'% &rarr; '+fmt(s.brut*mult/100)+'</span>'
+      +'</div>'
+      +'<input type="range" min="50" max="200" value="'+mult+'" '
+      +'oninput="simMultipliers[\''+s.id+'\']=+this.value;document.getElementById(\'simVol_'+s.id+'\').textContent=this.value+\'% \u2192 \'+fmt('+s.brut+'*this.value/100);updateSimResults()">'
+      +'</div>';
+  }).join('');
+
+  let simDetailRows = calcedSim.map(function(s, i){
+    const orig = calc.suppliers[i] ? calc.suppliers[i].brut : 0;
+    const d = s.brut - orig;
+    return '<tr>'
+      +'<td><span class="supplier-name"><span class="supplier-dot" style="background:'+(s.color||SUPPLIER_COLORS[i%SUPPLIER_COLORS.length])+'"></span>'+s.name+'</span></td>'
+      +'<td class="num">'+fmt(orig)+'</td>'
+      +'<td class="num">'+fmt(s.brut)+'</td>'
+      +'<td class="num"><span class="'+(d>=0?'delta-pos':'delta-neg')+'">'+(d>=0?'+':'')+fmt(d)+'</span></td>'
+      +'<td class="num">'+fmtEur(s.ca)+'</td>'
+      +'</tr>';
+  }).join('');
+
+  document.getElementById('tab-simulation').innerHTML =
+    '<div class="page-header"><h2>Simulation de sc\u00e9narios</h2><button class="btn btn-outline" onclick="resetSim()">\u21ba R\u00e9initialiser</button></div>'
+    +'<div class="sim-layout">'
+    +'<div class="sim-controls">'
+    +'<h3>Agents</h3>'
+    +'<div class="slider-row"><div class="slider-label"><span class="slider-name">ADM Value</span><span class="slider-val" id="simAdmVal">'+simAdmAgents+' agents</span></div>'
+    +'<input type="range" min="10" max="300" value="'+simAdmAgents+'" oninput="simAdmAgents=+this.value;document.getElementById(\'simAdmVal\').textContent=this.value+\' agents\';updateSimResults()"></div>'
+    +'<div class="slider-row"><div class="slider-label"><span class="slider-name">Active Contact</span><span class="slider-val" id="simActVal">'+simActAgents+' agents</span></div>'
+    +'<input type="range" min="10" max="300" value="'+simActAgents+'" oninput="simActAgents=+this.value;document.getElementById(\'simActVal\').textContent=this.value+\' agents\';updateSimResults()"></div>'
+    +'<h3>Volumes fournisseurs</h3>'
+    +volSliders
+    +'</div>'
+
+    +'<div class="sim-results">'
+    +'<div class="sim-kpi-grid">'
+    +'<div class="sim-kpi"><div class="label">Brut simul\u00e9</div><div class="value">'+fmt(simT.brut)+'</div><div class="delta">'+delta(simT.brut,T.brut)+'</div></div>'
+    +'<div class="sim-kpi"><div class="label">Sign\u00e9 simul\u00e9</div><div class="value">'+fmt(simT.signe)+'</div><div class="delta">'+delta(simT.signe,T.signe)+'</div></div>'
+    +'<div class="sim-kpi"><div class="label">CA simul\u00e9</div><div class="value" style="font-size:18px">'+fmtEur(simT.ca)+'</div><div class="delta">'+deltaEur(simT.ca,T.ca)+'</div></div>'
+    +'<div class="sim-kpi"><div class="label">Agents total</div><div class="value">'+(simAdmAgents+simActAgents)+'</div><div class="delta">'+delta(simAdmAgents+simActAgents,cc.adm.agents+cc.active.agents)+'</div></div>'
+    +'</div>'
+
+    +'<div class="section-card" style="margin-bottom:0">'
+    +'<h3>Capacit\u00e9 vs Objectif</h3>'
+    +'<div style="margin-top:12px;display:flex;flex-direction:column;gap:12px">'
+    +'<div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;color:var(--muted2)">ADM Value</span><span style="font-size:12px">'+feasBadge(simT.admBrut,simCapAdm)+' '+fmt(simT.admBrut)+' / '+fmt(simCapAdm)+'</span></div>'+feasBar(simT.admBrut,simCapAdm)+'</div>'
+    +'<div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;color:var(--muted2)">Active Contact</span><span style="font-size:12px">'+feasBadge(simT.actBrut,simCapAct)+' '+fmt(simT.actBrut)+' / '+fmt(simCapAct)+'</span></div>'+feasBar(simT.actBrut,simCapAct)+'</div>'
+    +'</div></div>'
+
+    +'<div class="section-card" style="margin-bottom:0"><h3>Comparaison Original vs Simul\u00e9</h3><div class="chart-container" style="height:220px"><canvas id="chartSimComparison"></canvas></div></div>'
+
+    +'<div class="section-card" style="margin-bottom:0"><h3>D\u00e9tail par fournisseur</h3>'
+    +'<table class="data-table"><thead><tr><th>Fournisseur</th><th class="num">Original</th><th class="num">Simul\u00e9</th><th class="num">&Delta; Brut</th><th class="num">CA simul\u00e9</th></tr></thead>'
+    +'<tbody>'+simDetailRows+'</tbody>'
+    +'<tfoot><tr class="row-total"><td><strong>TOTAL</strong></td><td class="num">'+fmt(T.brut)+'</td><td class="num">'+fmt(simT.brut)+'</td>'
+    +'<td class="num"><span class="'+(simT.brut>=T.brut?'delta-pos':'delta-neg')+'">'+(simT.brut>=T.brut?'+':'')+fmt(simT.brut-T.brut)+'</span></td>'
+    +'<td class="num">'+fmtEur(simT.ca)+'</td></tr></tfoot>'
+    +'</table></div>'
+    +'</div>'
+    +'</div>';
+
+  setTimeout(function(){
+    initSimChart(calc.suppliers, calcedSim);
+  }, 50);
 }
 
-/* ============================================================
-   UTILITIES
-   ============================================================ */
-function esc(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function updateSimResults(){ renderSimulation(); }
+function resetSim(){ initSim(); renderSimulation(); }
+
+function updateCC(){
+  const cc = getCCData();
+  const admA = document.getElementById('admAgents');
+  const admH = document.getElementById('admHours');
+  const actA = document.getElementById('actAgents');
+  const actH = document.getElementById('actHours');
+  if(admA) cc.adm.agents = +admA.value || 95;
+  if(admH) cc.adm.hoursPerDay = +admH.value || 7;
+  if(actA) cc.active.agents = +actA.value || 75;
+  if(actH) cc.active.hoursPerDay = +actH.value || 7;
+  saveCCData(cc);
+  renderConfig();
 }
 
-function formatMonth(ym) {
-  if (!ym) return '';
-  const [y, m] = ym.split('-');
-  const months = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  return `${months[parseInt(m)-1]} ${y}`;
+function updateSettings(){
+  const data = getCurrentData();
+  const wd = document.getElementById('workingDays');
+  const pd = document.getElementById('productivity');
+  if(wd) data.settings.workingDays = +wd.value || 26;
+  if(pd) data.settings.productivityPerAgent = +pd.value || 20;
+  saveCurrentData(data);
+  renderConfig();
 }
 
-let _toastTimer = null;
-function showToast(msg) {
-  let t = document.getElementById('toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'toast';
-    t.style.cssText = `
-      position:fixed; bottom:24px; right:24px; background:#1a1d2e; color:#fff;
-      padding:12px 20px; border-radius:8px; font-size:13px; font-weight:600;
-      box-shadow:0 4px 20px rgba(0,0,0,0.25); z-index:9999;
-      transform:translateY(0); transition:opacity 0.3s; opacity:1;
-    `;
-    document.body.appendChild(t);
-  }
-  t.textContent = '✓ ' + msg;
-  t.style.opacity = '1';
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+function updateSupplier(id, field, value){
+  const data = getCurrentData();
+  const s = data.suppliers.find(function(s){ return s.id === id; });
+  if(s) s[field] = value;
+  saveCurrentData(data);
+  renderConfig();
 }
 
-/* ============================================================
-   CLOSE MODALS ON OVERLAY CLICK
-   ============================================================ */
-document.getElementById('duplicateModal').addEventListener('click', function(e) {
-  if (e.target === this) closeDuplicateModal();
+function addSupplier(){
+  const data = getCurrentData();
+  data.suppliers.push({
+    id: 's'+Date.now(),
+    name: 'Nouveau fournisseur',
+    brut: 1000, txSig: 0.65, txFact: 0.85,
+    valMoy: 120, priority: 2, splitMode: 'auto', splitAdm: 56
+  });
+  saveCurrentData(data);
+  renderConfig();
+}
+
+function removeSupplier(id){
+  const data = getCurrentData();
+  if(data.suppliers.length <= 1){ alert('Impossible de supprimer le dernier fournisseur.'); return; }
+  if(!confirm('Supprimer ce fournisseur ?')) return;
+  data.suppliers = data.suppliers.filter(function(s){ return s.id !== id; });
+  saveCurrentData(data);
+  renderConfig();
+}
+
+function setMatrixView(v){ matrixView = v; renderMatrix(); }
+function setMatrixPeriod(p){ matrixPeriod = p; renderMatrix(); }
+
+function duplicateMonth(){
+  const src = document.getElementById('dupSource') ? document.getElementById('dupSource').value : null;
+  const tgt = document.getElementById('dupTarget') ? document.getElementById('dupTarget').value : null;
+  if(!src || !tgt || src === tgt){ alert('S\u00e9lectionnez des mois diff\u00e9rents.'); return; }
+  const parts = tgt.split('-');
+  const tgtName = MONTHS_FR[+parts[1]-1]+' '+parts[0];
+  if(!confirm('Dupliquer vers '+tgtName+' ? Les donn\u00e9es existantes seront \u00e9cras\u00e9es.')) return;
+  const srcData = getMonthData(src);
+  saveMonthData(tgt, JSON.parse(JSON.stringify(srcData)));
+  alert('Donn\u00e9es copi\u00e9es vers '+tgtName+' \u2713');
+}
+
+function copyPrevMonth(){
+  const prevM = currentMonth === 0 ? 11 : currentMonth - 1;
+  const prevY = currentMonth === 0 ? currentYear - 1 : currentYear;
+  const prevKey = getMonthKey(prevY, prevM);
+  const prevName = MONTHS_FR[prevM]+' '+prevY;
+  const curName = MONTHS_FR[currentMonth]+' '+currentYear;
+  if(!confirm('Reprendre les objectifs de '+prevName+' vers '+curName+' ?')) return;
+  const prevData = getMonthData(prevKey);
+  saveCurrentData(JSON.parse(JSON.stringify(prevData)));
+  renderTab(activeTab);
+  alert('Objectifs de '+prevName+' copi\u00e9s \u2713');
+}
+
+function exportPDF(){
+  window.print();
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  chartDefaults();
+  updateHeader();
+  initSim();
+  showTab('dashboard');
+
+  document.querySelectorAll('.nav-tab').forEach(function(btn){
+    btn.addEventListener('click', function(){ showTab(btn.dataset.tab); });
+  });
+  document.getElementById('btnPrevMonth').addEventListener('click', prevMonth);
+  document.getElementById('btnNextMonth').addEventListener('click', nextMonth);
+  document.getElementById('btnExport').addEventListener('click', exportPDF);
 });
-document.getElementById('confirmModal').addEventListener('click', function(e) {
-  if (e.target === this) closeConfirmModal();
-});
-
-/* ============================================================
-   START
-   ============================================================ */
-init();
 </script>
 </body>
 </html>
