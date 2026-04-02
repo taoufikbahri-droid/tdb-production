@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:vscode-e02f64bf-5155-438f-b784-c4a565973ec3.preview.emergentagent.com)",
+      "WebFetch(domain:9876-e02f64bf-5155-438f-b784-c4a565973ec3.preview.emergentagent.com)",
+      "WebFetch(domain:vscode-e02f64bf-5155-438f-b784-c4a565973ec3-9876.preview.emergentagent.com)",
+      "Bash(gh auth:*)",
+      "Bash(git config:*)",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}
