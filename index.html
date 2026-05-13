@@ -265,18 +265,19 @@ const MONTHS_FR = ['Janvier','F\u00e9vrier','Mars','Avril','Mai','Juin','Juillet
 const SUPPLIER_COLORS = ['#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ec4899'];
 
 const DEFAULT_SUPPLIERS = [
-  {id:'s1',name:'Octopus',brut:8000,txSig:0.65,txFact:0.85,valMoy:120,priority:1,splitMode:'auto',splitAdm:56},
-  {id:'s2',name:'Engie',brut:12000,txSig:0.70,txFact:0.88,valMoy:150,priority:1,splitMode:'auto',splitAdm:56},
-  {id:'s3',name:'TotalEnergie',brut:10000,txSig:0.68,txFact:0.82,valMoy:135,priority:2,splitMode:'auto',splitAdm:56},
-  {id:'s4',name:'Ekwateur',brut:5000,txSig:0.60,txFact:0.80,valMoy:110,priority:2,splitMode:'auto',splitAdm:56},
-  {id:'s5',name:'Ilek',brut:4000,txSig:0.62,txFact:0.78,valMoy:105,priority:3,splitMode:'auto',splitAdm:56},
-  {id:'s6',name:'Plenitude / ENI',brut:7000,txSig:0.66,txFact:0.84,valMoy:125,priority:2,splitMode:'auto',splitAdm:56}
+  {id:'s1',name:'Engie',brut:5000,realized:2225,txSig:0.65,txFact:0.85,valMoy:150,priority:1,splitMode:'auto',splitAdm:56,campaign:'MES'},
+  {id:'s2',name:'Plenitude',brut:1500,realized:191,txSig:0.66,txFact:0.84,valMoy:125,priority:2,splitMode:'auto',splitAdm:56,campaign:'MES'},
+  {id:'s3',name:'TotalEnergie',brut:1000,realized:807,txSig:0.68,txFact:0.82,valMoy:135,priority:2,splitMode:'auto',splitAdm:56,campaign:'Comparateur'},
+  {id:'s4',name:'Ilek',brut:200,realized:50,txSig:0.62,txFact:0.78,valMoy:105,priority:3,splitMode:'auto',splitAdm:56,campaign:'MES'},
+  {id:'s5',name:'Ekwateur',brut:200,realized:43,txSig:0.60,txFact:0.80,valMoy:110,priority:3,splitMode:'auto',splitAdm:56,campaign:'MES'},
+  {id:'s6',name:'Octopus',brut:80,realized:28,txSig:0.70,txFact:0.88,valMoy:120,priority:3,splitMode:'auto',splitAdm:56,campaign:'MES'}
 ];
 
-const DEFAULT_SETTINGS = { workingDays:26, productivityPerAgent:20 };
-const DEFAULT_CC = { adm:{agents:95,hoursPerDay:7}, active:{agents:75,hoursPerDay:7} };
+const DEFAULT_SETTINGS = { weekdays: 17, saturdays: 5, saturdayRate: 0.30, productivityPerAgent: 20, daysElapsed: 9 };
+const FERIES_2026 = {0:[1],4:[1,8,14,25],6:[14],7:[15],10:[1,11],11:[25]};
+const DEFAULT_CC = { adm: {agents:95,hoursPerDay:7,saturdayRate:0.30}, active: {agents:75,hoursPerDay:7,saturdayRate:0.30} };
 
-let currentYear = 2026, currentMonth = 2;
+let currentYear = 2026, currentMonth = 4;
 let activeTab = 'dashboard', matrixView = 'global', matrixPeriod = 'mensuel';
 const charts = {};
 
@@ -294,7 +295,12 @@ function getCurrentKey(){ return getMonthKey(currentYear, currentMonth); }
 function getMonthData(key){
   const s = loadStorage();
   if(s.months && s.months[key]) return s.months[key];
-  return { suppliers: JSON.parse(JSON.stringify(DEFAULT_SUPPLIERS)), settings: Object.assign({},DEFAULT_SETTINGS) };
+  return {
+    suppliers: JSON.parse(JSON.stringify(DEFAULT_SUPPLIERS)),
+    settings: Object.assign({},DEFAULT_SETTINGS),
+    forecast: { brutRealized: 0, signedRealized: 0, factoredRealized: 0, daysElapsed: 0 },
+    daysElapsed: DEFAULT_SETTINGS.daysElapsed || 0
+  };
 }
 function saveMonthData(key, data){
   const s = loadStorage();
@@ -312,13 +318,27 @@ function calcAll(){
   const cc = getCCData();
   const totalAgents = cc.adm.agents + cc.active.agents;
   const autoAdmW = totalAgents > 0 ? cc.adm.agents / totalAgents : 0.5;
-  const wd = data.settings.workingDays || 26;
+  const wd = data.settings.weekdays || 22;
+  const sat = data.settings.saturdays || 4;
   const prod = data.settings.productivityPerAgent || 20;
-  const WD = 4.33;
+
+  // Capacity calculation with saturday reduced staff
+  const capAdm = (cc.adm.agents * wd * prod) + (cc.adm.agents * (cc.adm.saturdayRate || 0.30) * sat * prod);
+  const capAct = (cc.active.agents * wd * prod) + (cc.active.agents * (cc.active.saturdayRate || 0.30) * sat * prod);
+  const capTotal = capAdm + capAct;
+
+  const totalDays = wd + sat;
+  const WD = totalDays / 5; // approximate weeks for daily division
+
+  // Suivi réalisé
+  const daysElapsed = data.daysElapsed || data.settings.daysElapsed || 0;
+  const equivDays = wd + (sat * (cc.adm.saturdayRate || 0.30));
+  const daysRemaining = Math.max(0, equivDays - daysElapsed);
 
   const suppliers = data.suppliers.map(function(s, i){
-    const admW = s.splitMode === 'manual' ? s.splitAdm / 100 : autoAdmW;
-    const actW = 1 - admW;
+    const isComparateur = s.campaign === 'Comparateur';
+    const admW = isComparateur ? 1 : (s.splitMode === 'manual' ? s.splitAdm / 100 : autoAdmW);
+    const actW = isComparateur ? 0 : (1 - admW);
     const signe = Math.round(s.brut * s.txSig);
     const facture = Math.round(signe * s.txFact);
     const ca = Math.round(facture * s.valMoy);
@@ -326,6 +346,20 @@ function calcAll(){
     const admSigne = Math.round(signe * admW);
     const actBrut = s.brut - admBrut;
     const actSigne = signe - admSigne;
+
+    // Realized tracking
+    const realized = s.realized || 0;
+    const restant = s.brut - realized;
+    const pctAtteinte = s.brut > 0 ? realized / s.brut : 0;
+    const velocite = daysElapsed > 0 ? Math.round(realized / daysElapsed) : 0;
+    const projection = daysElapsed > 0 ? Math.round(realized + velocite * daysRemaining) : 0;
+    const pctProjection = s.brut > 0 ? projection / s.brut : 0;
+    const quotaJourRestant = daysRemaining > 0 ? Math.round(restant / daysRemaining) : 0;
+    const ecartProjection = projection - s.brut;
+    let statut = 'Critique', statutCls = 'danger';
+    if(pctProjection >= 1.0){ statut = 'En bonne voie'; statutCls = 'success'; }
+    else if(pctProjection >= 0.85){ statut = 'Vigilance'; statutCls = 'warning'; }
+
     return Object.assign({}, s, {
       color: SUPPLIER_COLORS[i % SUPPLIER_COLORS.length],
       signe: signe, facture: facture, ca: ca,
@@ -333,23 +367,25 @@ function calcAll(){
       brutH: Math.round(s.brut/WD), signeH: Math.round(signe/WD),
       admBrutH: Math.round(admBrut/WD), admSigneH: Math.round(admSigne/WD),
       actBrutH: Math.round(actBrut/WD), actSigneH: Math.round(actSigne/WD),
-      brutJ: Math.round(s.brut/wd), signeJ: Math.round(signe/wd),
-      admBrutJ: Math.round(admBrut/wd), admSigneJ: Math.round(admSigne/wd),
-      actBrutJ: Math.round(actBrut/wd), actSigneJ: Math.round(actSigne/wd)
+      brutJ: Math.round(s.brut/totalDays), signeJ: Math.round(signe/totalDays),
+      admBrutJ: Math.round(admBrut/totalDays), admSigneJ: Math.round(admSigne/totalDays),
+      actBrutJ: Math.round(actBrut/totalDays), actSigneJ: Math.round(actSigne/totalDays),
+      realized: realized, restant: restant, pctAtteinte: pctAtteinte,
+      velocite: velocite, projection: projection, pctProjection: pctProjection,
+      quotaJourRestant: quotaJourRestant, ecartProjection: ecartProjection,
+      statut: statut, statutCls: statutCls
     });
   });
 
   const keys = ['brut','signe','facture','ca','admBrut','admSigne','actBrut','actSigne',
     'brutH','signeH','admBrutH','admSigneH','actBrutH','actSigneH',
-    'brutJ','signeJ','admBrutJ','admSigneJ','actBrutJ','actSigneJ'];
+    'brutJ','signeJ','admBrutJ','admSigneJ','actBrutJ','actSigneJ',
+    'realized','restant','velocite','projection','ecartProjection','quotaJourRestant'];
   const T = suppliers.reduce(function(a, s){
     keys.forEach(function(k){ a[k] = (a[k]||0) + s[k]; });
     return a;
   }, {name:'TOTAL'});
 
-  const capAdm = cc.adm.agents * prod * wd;
-  const capAct = cc.active.agents * prod * wd;
-  const capTotal = capAdm + capAct;
   const uAdm = capAdm > 0 ? T.admBrut / capAdm * 100 : 0;
   const uAct = capAct > 0 ? T.actBrut / capAct * 100 : 0;
   const uTotal = capTotal > 0 ? T.brut / capTotal * 100 : 0;
@@ -357,12 +393,21 @@ function calcAll(){
   const txFactGlobal = T.signe > 0 ? T.facture / T.signe : 0;
   const valMoyGlobal = T.facture > 0 ? T.ca / T.facture : 0;
 
+  // Totaux réalisé
+  T.pctAtteinte = T.brut > 0 ? T.realized / T.brut : 0;
+  T.pctProjection = T.brut > 0 ? T.projection / T.brut : 0;
+  let tStatut = 'Critique', tStatutCls = 'danger';
+  if(T.pctProjection >= 1.0){ tStatut = 'En bonne voie'; tStatutCls = 'success'; }
+  else if(T.pctProjection >= 0.85){ tStatut = 'Vigilance'; tStatutCls = 'warning'; }
+  T.statut = tStatut; T.statutCls = tStatutCls;
+
   return {
     suppliers: suppliers, totals: T,
     capacity: {adm: capAdm, active: capAct, total: capTotal},
     utilization: {adm: uAdm, active: uAct, total: uTotal},
     rates: {txSig: txSigGlobal, txFact: txFactGlobal, valMoy: valMoyGlobal},
-    cc: cc, settings: data.settings
+    cc: cc, settings: data.settings,
+    daysElapsed: daysElapsed, daysRemaining: daysRemaining, equivDays: equivDays
   };
 }
 
@@ -505,25 +550,83 @@ function renderDashboard(){
   const r = calc.rates;
   const cc = calc.cc;
   const s = calc.settings;
+  const data = getCurrentData();
+  const forecast = data.forecast || {};
 
   const sorted = calc.suppliers.slice().sort(function(a,b){return a.priority-b.priority;});
-  const admCapPer = cap.adm / Math.max(calc.suppliers.length,1);
-  const actCapPer = cap.active / Math.max(calc.suppliers.length,1);
 
   const prioLabels = ['','&#11014; Haute','&#10145; Moyenne','&#11015; Basse'];
 
-  let feasRows = sorted.map(function(s){
+  // Suivi réalisé table
+  let suiviRows = sorted.map(function(s){
+    const alertIcon = s.statutCls === 'danger' ? '&#128308; ALERTE' : s.statutCls === 'warning' ? '&#128992; !!' : '&#128994; OK';
     return '<tr>'
       +'<td><span class="supplier-name"><span class="supplier-dot" style="background:'+s.color+'"></span>'+s.name+'</span></td>'
       +'<td class="num">'+fmt(s.brut)+'</td>'
-      +'<td class="num">'+fmt(s.signe)+'</td>'
-      +'<td class="num">'+fmt(s.facture)+'</td>'
-      +'<td class="num">'+fmtEur(s.ca)+'</td>'
-      +'<td>'+feasBadge(s.admBrut,admCapPer)+' <span style="font-size:11px;color:var(--muted)">'+fmt(s.admBrut)+'</span></td>'
-      +'<td>'+feasBadge(s.actBrut,actCapPer)+' <span style="font-size:11px;color:var(--muted)">'+fmt(s.actBrut)+'</span></td>'
-      +'<td><span class="prio-'+s.priority+'">'+(prioLabels[s.priority]||s.priority)+'</span></td>'
+      +'<td class="num" style="color:var(--primary);font-weight:700">'+fmt(s.realized)+'</td>'
+      +'<td class="num">'+fmt(s.restant)+'</td>'
+      +'<td class="num">'+fmtPct(s.pctAtteinte)+'</td>'
+      +'<td class="num">'+fmt(s.velocite)+'</td>'
+      +'<td class="num">'+fmt(s.projection)+'</td>'
+      +'<td class="num">'+fmtPct(s.pctProjection)+'</td>'
+      +'<td class="num">'+fmt(s.quotaJourRestant)+'</td>'
+      +'<td class="num" style="color:var(--'+(s.ecartProjection>=0?'success':'danger')+')">'+fmt(s.ecartProjection)+'</td>'
+      +'<td><span class="badge '+s.statutCls+'">'+s.statut+'</span></td>'
+      +'<td style="font-size:11px">'+alertIcon+'</td>'
       +'</tr>';
   }).join('');
+
+  suiviRows += '<tr class="row-total">'
+    +'<td>TOTAL</td>'
+    +'<td class="num">'+fmt(T.brut)+'</td>'
+    +'<td class="num" style="color:var(--primary)">'+fmt(T.realized)+'</td>'
+    +'<td class="num">'+fmt(T.restant)+'</td>'
+    +'<td class="num">'+fmtPct(T.pctAtteinte)+'</td>'
+    +'<td class="num">'+fmt(T.velocite)+'</td>'
+    +'<td class="num">'+fmt(T.projection)+'</td>'
+    +'<td class="num">'+fmtPct(T.pctProjection)+'</td>'
+    +'<td class="num">'+fmt(T.quotaJourRestant)+'</td>'
+    +'<td class="num" style="color:var(--'+(T.ecartProjection>=0?'success':'danger')+')">'+fmt(T.ecartProjection)+'</td>'
+    +'<td><span class="badge '+T.statutCls+'">'+T.statut+'</span></td>'
+    +'<td></td>'
+    +'</tr>';
+
+  // Forecast section
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const daysElapsed = forecast.daysElapsed || 0;
+  const daysRemaining = daysInMonth - daysElapsed;
+  const brutRealiz = forecast.brutRealized || 0;
+  const velPerDay = daysElapsed > 0 ? brutRealiz / daysElapsed : 0;
+  const landingEst = brutRealiz + (velPerDay * daysRemaining);
+  const ecartVsObj = T.brut - brutRealiz;
+  const rhythmeNec = daysRemaining > 0 ? ecartVsObj / daysRemaining : 0;
+  
+  let forecastStatus = 'EN AVANCE';
+  let forecastColor = 'success';
+  if(landingEst < T.brut * 0.85) { forecastStatus = 'CRITIQUE'; forecastColor = 'danger'; }
+  else if(landingEst < T.brut) { forecastStatus = 'À SURVEILLER'; forecastColor = 'warning'; }
+
+  const forecastHTML = ''
+    +'<div class="section-card">'
+    +'<div class="section-header"><h3>Prévisionnel</h3><span class="badge '+forecastColor+'">'+forecastStatus+'</span></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px">'
+    +'<div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Réalisé à date (brut)</label><input type="number" id="fBrut" class="input" value="'+(brutRealiz||0)+'" onchange="updateForecast()" style="width:100%"></div>'
+    +'<div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Réalisé signé</label><input type="number" id="fSigned" class="input" value="'+(forecast.signedRealized||0)+'" onchange="updateForecast()" style="width:100%"></div>'
+    +'<div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Réalisé facturé</label><input type="number" id="fFactored" class="input" value="'+(forecast.factoredRealized||0)+'" onchange="updateForecast()" style="width:100%"></div>'
+    +'<div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:6px">Jours écoulés</label><input type="number" id="fDays" class="input" value="'+(daysElapsed||0)+'" onchange="updateForecast()" style="width:100%"></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px">'
+    +'<div style="background:var(--surface3);padding:12px;border-radius:var(--radius-sm)"><div style="font-size:11px;color:var(--muted)">Vélocité/jour</div><div style="font-size:18px;font-weight:700;margin-top:4px">'+fmt(velPerDay)+'</div></div>'
+    +'<div style="background:var(--surface3);padding:12px;border-radius:var(--radius-sm)"><div style="font-size:11px;color:var(--muted)">Landing estimé</div><div style="font-size:18px;font-weight:700;margin-top:4px">'+fmt(landingEst)+'</div></div>'
+    +'<div style="background:var(--surface3);padding:12px;border-radius:var(--radius-sm)"><div style="font-size:11px;color:var(--muted)">Écart vs objectif</div><div style="font-size:18px;font-weight:700;margin-top:4px">'+fmt(ecartVsObj)+'</div></div>'
+    +'<div style="background:var(--surface3);padding:12px;border-radius:var(--radius-sm)"><div style="font-size:11px;color:var(--muted)">Rythme nécessaire</div><div style="font-size:18px;font-weight:700;margin-top:4px">'+fmt(rhythmeNec)+'</div></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px">'
+    +'<div style="background:rgba(16,185,129,0.1);padding:12px;border-radius:var(--radius-sm);border:1px solid rgba(16,185,129,0.2)"><div style="font-size:11px;color:var(--muted)">Optimiste (+15%)</div><div style="font-size:16px;font-weight:700;color:var(--success);margin-top:4px">'+fmt(landingEst * 1.15)+'</div></div>'
+    +'<div style="background:rgba(99,102,241,0.1);padding:12px;border-radius:var(--radius-sm);border:1px solid rgba(99,102,241,0.2)"><div style="font-size:11px;color:var(--muted)">Central</div><div style="font-size:16px;font-weight:700;color:var(--primary);margin-top:4px">'+fmt(landingEst)+'</div></div>'
+    +'<div style="background:rgba(239,68,68,0.1);padding:12px;border-radius:var(--radius-sm);border:1px solid rgba(239,68,68,0.2)"><div style="font-size:11px;color:var(--muted)">Pessimiste (-15%)</div><div style="font-size:16px;font-weight:700;color:var(--danger);margin-top:4px">'+fmt(landingEst * 0.85)+'</div></div>'
+    +'</div>'
+    +'</div>';
 
   document.getElementById('tab-dashboard').innerHTML =
     '<div class="page-header">'
@@ -532,44 +635,45 @@ function renderDashboard(){
     +'</div>'
 
     +'<div class="kpi-grid">'
-    +'<div class="kpi-card"><div class="kpi-icon">&#127919;</div><div class="kpi-label">Objectif Brut</div><div class="kpi-value">'+fmt(T.brut)+'</div><div class="kpi-sub">contacts bruts / mois</div></div>'
-    +'<div class="kpi-card"><div class="kpi-icon">&#9997;&#65039;</div><div class="kpi-label">Objectif Sign\u00e9</div><div class="kpi-value">'+fmt(T.signe)+'</div><div class="kpi-sub">contrats sign\u00e9s / mois</div></div>'
-    +'<div class="kpi-card"><div class="kpi-icon">&#9989;</div><div class="kpi-label">Objectif Factur\u00e9</div><div class="kpi-value">'+fmt(T.facture)+'</div><div class="kpi-sub">contrats factur\u00e9s / mois</div></div>'
-    +'<div class="kpi-card"><div class="kpi-icon">&#128182;</div><div class="kpi-label">CA Projet\u00e9</div><div class="kpi-value" style="font-size:22px">'+fmtEur(T.ca)+'</div><div class="kpi-sub">chiffre d\'affaires pr\u00e9visionnel</div></div>'
+    +'<div class="kpi-card"><div class="kpi-icon">&#127919;</div><div class="kpi-label">Réalisé / Objectif</div><div class="kpi-value" style="color:var(--primary)">'+fmt(T.realized)+' <span style="font-size:16px;color:var(--muted)">/ '+fmt(T.brut)+'</span></div><div class="kpi-sub">'+fmtPct(T.pctAtteinte)+' atteinte</div></div>'
+    +'<div class="kpi-card"><div class="kpi-icon">&#128640;</div><div class="kpi-label">Projection fin mois</div><div class="kpi-value" style="color:var(--'+(T.ecartProjection>=0?'success':'danger')+')">'+fmt(T.projection)+'</div><div class="kpi-sub">'+fmtPct(T.pctProjection)+' &middot; écart '+fmt(T.ecartProjection)+'</div></div>'
+    +'<div class="kpi-card"><div class="kpi-icon">&#9889;</div><div class="kpi-label">Vélocité / jour</div><div class="kpi-value">'+fmt(T.velocite)+'</div><div class="kpi-sub">quota restant/jour : '+fmt(T.quotaJourRestant)+'</div></div>'
+    +'<div class="kpi-card"><div class="kpi-icon">&#128182;</div><div class="kpi-label">CA Projeté</div><div class="kpi-value" style="font-size:22px">'+fmtEur(T.ca)+'</div><div class="kpi-sub">Tx sig. '+fmtPct(r.txSig)+' &middot; Tx fact. '+fmtPct(r.txFact)+'</div></div>'
     +'</div>'
 
     +'<div class="info-row">'
-    +'<div class="info-chip">&#128197; '+s.workingDays+' jours ouvrés</div>'
-    +'<div class="info-chip">&#128198; 4,33 semaines</div>'
-    +'<div class="info-chip">&#9997;&#65039; Tx signature global&nbsp;: '+fmtPct(r.txSig)+'</div>'
-    +'<div class="info-chip">&#9989; Tx facturation global&nbsp;: '+fmtPct(r.txFact)+'</div>'
+    +'<div class="info-chip">&#128197; '+calc.daysElapsed+' jours écoulés / '+calc.equivDays.toFixed(1)+' equiv.</div>'
+    +'<div class="info-chip">&#9203; '+calc.daysRemaining.toFixed(1)+' jours restants</div>'
+    +'<div class="info-chip">&#127970; '+(cc.adm.agents+cc.active.agents)+' agents ('+cc.adm.agents+' ADM + '+cc.active.agents+' AC)</div>'
     +'<div class="info-chip">&#128182; Valeur moyenne&nbsp;: '+fmtEur(r.valMoy)+'</div>'
-    +'<div class="info-chip">&#127970; '+(cc.adm.agents+cc.active.agents)+' agents total</div>'
+    +'<div class="info-chip"><span class="badge '+T.statutCls+'">'+T.statut+'</span></div>'
     +'</div>'
 
     +'<div class="cc-row">'
     // ADM card
     +'<div class="cc-card">'
-    +'<div class="cc-header"><div><div class="cc-name">ADM Value</div><div class="cc-agents">'+cc.adm.agents+' agents &middot; '+cc.adm.hoursPerDay+'h/jour</div></div>'+feasBadge(T.admBrut,cap.adm)+'</div>'
-    +'<div class="cc-stat"><div class="cc-stat-label">Capacit\u00e9 th\u00e9orique</div><div class="cc-stat-value">'+fmt(cap.adm)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
-    +'<div class="cc-stat"><div class="cc-stat-label">Objectif assign\u00e9</div><div class="cc-stat-value">'+fmt(T.admBrut)+'</div><div class="cc-stat-sub">bruts &middot; '+fmt(T.admSigne)+' sign\u00e9s</div></div>'
+    +'<div class="cc-header"><div><div class="cc-name">ADM Value</div><div class="cc-agents">'+cc.adm.agents+' agents &middot; '+cc.adm.hoursPerDay+'h/jour &middot; '+Math.round((cc.adm.saturdayRate||0.30)*100)+'% samedi</div></div>'+feasBadge(T.admBrut,cap.adm)+'</div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Capacité théorique</div><div class="cc-stat-value">'+fmt(cap.adm)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Objectif assigné</div><div class="cc-stat-value">'+fmt(T.admBrut)+'</div><div class="cc-stat-sub">bruts &middot; '+fmt(T.admSigne)+' signés</div></div>'
     +feasBar(T.admBrut,cap.adm)
     +'</div>'
     // Active card
     +'<div class="cc-card">'
-    +'<div class="cc-header"><div><div class="cc-name">Active Contact</div><div class="cc-agents">'+cc.active.agents+' agents &middot; '+cc.active.hoursPerDay+'h/jour</div></div>'+feasBadge(T.actBrut,cap.active)+'</div>'
-    +'<div class="cc-stat"><div class="cc-stat-label">Capacit\u00e9 th\u00e9orique</div><div class="cc-stat-value">'+fmt(cap.active)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
-    +'<div class="cc-stat"><div class="cc-stat-label">Objectif assign\u00e9</div><div class="cc-stat-value">'+fmt(T.actBrut)+'</div><div class="cc-stat-sub">bruts &middot; '+fmt(T.actSigne)+' sign\u00e9s</div></div>'
+    +'<div class="cc-header"><div><div class="cc-name">Active Contact</div><div class="cc-agents">'+cc.active.agents+' agents &middot; '+cc.active.hoursPerDay+'h/jour &middot; '+Math.round((cc.active.saturdayRate||0.30)*100)+'% samedi</div></div>'+feasBadge(T.actBrut,cap.active)+'</div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Capacité théorique</div><div class="cc-stat-value">'+fmt(cap.active)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Objectif assigné</div><div class="cc-stat-value">'+fmt(T.actBrut)+'</div><div class="cc-stat-sub">bruts &middot; '+fmt(T.actSigne)+' signés</div></div>'
     +feasBar(T.actBrut,cap.active)
     +'</div>'
     // Total card
     +'<div class="cc-card">'
-    +'<div class="cc-header"><div><div class="cc-name">Capacit\u00e9 Globale</div><div class="cc-agents">'+(cc.adm.agents+cc.active.agents)+' agents combin\u00e9s</div></div>'+feasBadge(T.brut,cap.total)+'</div>'
-    +'<div class="cc-stat"><div class="cc-stat-label">Capacit\u00e9 totale</div><div class="cc-stat-value">'+fmt(cap.total)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
-    +'<div class="cc-stat"><div class="cc-stat-label">Objectif total</div><div class="cc-stat-value">'+fmt(T.brut)+'</div><div class="cc-stat-sub">soit '+u.total.toFixed(1)+'% de la capacit\u00e9</div></div>'
+    +'<div class="cc-header"><div><div class="cc-name">Capacité Globale</div><div class="cc-agents">'+(cc.adm.agents+cc.active.agents)+' agents combinés</div></div>'+feasBadge(T.brut,cap.total)+'</div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Capacité totale</div><div class="cc-stat-value">'+fmt(cap.total)+'</div><div class="cc-stat-sub">contacts bruts / mois</div></div>'
+    +'<div class="cc-stat"><div class="cc-stat-label">Objectif total</div><div class="cc-stat-value">'+fmt(T.brut)+'</div><div class="cc-stat-sub">soit '+u.total.toFixed(1)+'% de la capacité</div></div>'
     +feasBar(T.brut,cap.total)
     +'</div>'
     +'</div>'
+
+    + forecastHTML
 
     +'<div class="charts-row">'
     +'<div class="chart-card"><h3>Production par fournisseur</h3><div class="chart-container"><canvas id="chartBar"></canvas></div></div>'
@@ -577,14 +681,15 @@ function renderDashboard(){
     +'</div>'
 
     +'<div class="section-card">'
-    +'<h3>Faisabilit\u00e9 par fournisseur</h3>'
-    +'<table class="data-table" style="margin-top:8px">'
+    +'<h3>Faisabilité par fournisseur</h3>'
+    +'<div style="overflow-x:auto"><table class="data-table" style="margin-top:8px">'
     +'<thead><tr>'
-    +'<th>Fournisseur</th><th class="num">Brut</th><th class="num">Sign\u00e9</th><th class="num">Factur\u00e9</th><th class="num">CA</th>'
-    +'<th>ADM Value</th><th>Active Contact</th><th>Priorit\u00e9</th>'
+    +'<th>Fournisseur</th><th class="num">Quota</th><th class="num">Réalisé</th><th class="num">Restant</th><th class="num">% Atteinte</th>'
+    +'<th class="num">Vélocité/j</th><th class="num">Projection</th><th class="num">% Proj.</th>'
+    +'<th class="num">Quota/j rest.</th><th class="num">Écart</th><th>Statut</th><th>Alerte</th>'
     +'</tr></thead>'
-    +'<tbody>'+feasRows+'</tbody>'
-    +'</table>'
+    +'<tbody>'+suiviRows+'</tbody>'
+    +'</table></div>'
     +'</div>';
 
   setTimeout(function(){
@@ -593,19 +698,39 @@ function renderDashboard(){
   }, 50);
 }
 
+function updateDaysElapsed(){
+  const data = getCurrentData();
+  const el = document.getElementById('daysElapsed');
+  if(el) data.daysElapsed = +el.value || 0;
+  saveCurrentData(data);
+  renderConfig();
+}
+
+function updateForecast(){
+  const data = getCurrentData();
+  data.forecast = data.forecast || {};
+  data.forecast.brutRealized = +document.getElementById('fBrut').value || 0;
+  data.forecast.signedRealized = +document.getElementById('fSigned').value || 0;
+  data.forecast.factoredRealized = +document.getElementById('fFactored').value || 0;
+  data.forecast.daysElapsed = +document.getElementById('fDays').value || 0;
+  saveCurrentData(data);
+  renderDashboard();
+}
+
 function renderConfig(){
   const data = getCurrentData();
   const cc = getCCData();
   const calc = calcAll();
   const s = data.settings;
 
-  let supplierRows = calc.suppliers.map(function(sup){
+  const supplierRows = data.suppliers.map(function(sup){
     const splitCtrl = sup.splitMode === 'manual'
       ? '<input class="input w-sm" type="number" value="'+sup.splitAdm+'" min="0" max="100" onchange="updateSupplier(\''+sup.id+'\',\'splitAdm\',+this.value)"><span style="margin-left:2px;color:var(--muted);font-size:11px">%</span>'
       : '<span style="font-size:11px;color:var(--muted)">prop. agents</span>';
     return '<tr>'
       +'<td><input class="input-name" value="'+sup.name+'" onchange="updateSupplier(\''+sup.id+'\',\'name\',this.value)"></td>'
       +'<td><input class="input w-md" type="number" value="'+sup.brut+'" min="0" onchange="updateSupplier(\''+sup.id+'\',\'brut\',+this.value)"></td>'
+      +'<td><input class="input w-md" type="number" value="'+(sup.realized||0)+'" min="0" style="color:var(--primary)" onchange="updateSupplier(\''+sup.id+'\',\'realized\',+this.value)"></td>'
       +'<td><input class="input w-sm" type="number" value="'+(sup.txSig*100).toFixed(0)+'" min="0" max="100" step="1" onchange="updateSupplier(\''+sup.id+'\',\'txSig\',+this.value/100)"><span style="margin-left:4px;color:var(--muted)">%</span></td>'
       +'<td><input class="input w-sm" type="number" value="'+(sup.txFact*100).toFixed(0)+'" min="0" max="100" step="1" onchange="updateSupplier(\''+sup.id+'\',\'txFact\',+this.value/100)"><span style="margin-left:4px;color:var(--muted)">%</span></td>'
       +'<td><input class="input w-md" type="number" value="'+sup.valMoy+'" min="0" onchange="updateSupplier(\''+sup.id+'\',\'valMoy\',+this.value)"></td>'
@@ -616,6 +741,10 @@ function renderConfig(){
       +'<option value="1" '+(sup.priority===1?'selected':'')+'>&#11014; Haute</option>'
       +'<option value="2" '+(sup.priority===2?'selected':'')+'>&#10145; Moy.</option>'
       +'<option value="3" '+(sup.priority===3?'selected':'')+'>&#11015; Basse</option>'
+      +'</select></td>'
+      +'<td><select class="input w-xs" style="width:70px" onchange="updateSupplier(\''+sup.id+'\',\'campaign\',this.value)">'
+      +'<option value="MES" '+(sup.campaign==='MES'?'selected':'')+'>MES</option>'
+      +'<option value="Comparateur" '+(sup.campaign==='Comparateur'?'selected':'')+'>Compar.</option>'
       +'</select></td>'
       +'<td>'
       +'<select class="input" style="width:80px;margin-right:4px" onchange="updateSupplier(\''+sup.id+'\',\'splitMode\',this.value)">'
@@ -633,19 +762,23 @@ function renderConfig(){
     +'<div class="cc-config-card"><h3>&#127970; ADM Value</h3>'
     +'<div class="form-row"><label>Nombre d\'agents</label><input class="input w-md" type="number" id="admAgents" value="'+cc.adm.agents+'" min="1" max="500" onchange="updateCC()"></div>'
     +'<div class="form-row"><label>Heures / jour / agent</label><input class="input w-md" type="number" id="admHours" value="'+cc.adm.hoursPerDay+'" min="1" max="12" step="0.5" onchange="updateCC()"></div>'
-    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Capacit\u00e9 mensuelle estim\u00e9e</div><div style="font-size:20px;font-weight:700;color:var(--primary)">'+fmt(calc.capacity.adm)+'</div><div style="font-size:11px;color:var(--muted)">contacts bruts</div></div>'
+    +'<div class="form-row"><label>Taux présence samedi (%)</label><input class="input w-md" type="number" id="admSatRate" value="'+Math.round((cc.adm.saturdayRate||0.30)*100)+'" min="0" max="100" step="1" onchange="updateCC()"></div>'
+    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Capacité mensuelle estimée</div><div style="font-size:20px;font-weight:700;color:var(--primary)">'+fmt(calc.capacity.adm)+'</div><div style="font-size:11px;color:var(--muted)">contacts bruts</div></div>'
     +'</div>'
 
     +'<div class="cc-config-card"><h3>&#127970; Active Contact</h3>'
     +'<div class="form-row"><label>Nombre d\'agents</label><input class="input w-md" type="number" id="actAgents" value="'+cc.active.agents+'" min="1" max="500" onchange="updateCC()"></div>'
     +'<div class="form-row"><label>Heures / jour / agent</label><input class="input w-md" type="number" id="actHours" value="'+cc.active.hoursPerDay+'" min="1" max="12" step="0.5" onchange="updateCC()"></div>'
-    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Capacit\u00e9 mensuelle estim\u00e9e</div><div style="font-size:20px;font-weight:700;color:var(--primary)">'+fmt(calc.capacity.active)+'</div><div style="font-size:11px;color:var(--muted)">contacts bruts</div></div>'
+    +'<div class="form-row"><label>Taux présence samedi (%)</label><input class="input w-md" type="number" id="actSatRate" value="'+Math.round((cc.active.saturdayRate||0.30)*100)+'" min="0" max="100" step="1" onchange="updateCC()"></div>'
+    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Capacité mensuelle estimée</div><div style="font-size:20px;font-weight:700;color:var(--primary)">'+fmt(calc.capacity.active)+'</div><div style="font-size:11px;color:var(--muted)">contacts bruts</div></div>'
     +'</div>'
 
-    +'<div class="cc-config-card"><h3>&#9881;&#65039; Param\u00e8tres g\u00e9n\u00e9raux</h3>'
-    +'<div class="form-row"><label>Jours ouvrés / mois (lun-sam)</label><input class="input w-md" type="number" id="workingDays" value="'+s.workingDays+'" min="1" max="31" onchange="updateSettings()"></div>'
-    +'<div class="form-row"><label>Productivit\u00e9 (contacts/agent/jour)</label><input class="input w-md" type="number" id="productivity" value="'+s.productivityPerAgent+'" min="1" max="200" onchange="updateSettings()"></div>'
-    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Diviseur hebdomadaire</div><div style="font-size:20px;font-weight:700;color:var(--primary)">\u00f7 4,33</div><div style="font-size:11px;color:var(--muted)">fixe (standard industrie)</div></div>'
+    +'<div class="cc-config-card"><h3>&#9881;&#65039; Paramètres généraux</h3>'
+    +'<div class="form-row"><label>Jours lun-ven / mois</label><input class="input w-md" type="number" id="weekdayDays" value="'+(s.weekdays||22)+'" min="1" max="31" onchange="updateSettings()"></div>'
+    +'<div class="form-row"><label>Samedis travaillés / mois</label><input class="input w-md" type="number" id="saturdayDays" value="'+(s.saturdays||4)+'" min="0" max="10" onchange="updateSettings()"></div>'
+    +'<div class="form-row"><label>Productivité (contacts/agent/jour)</label><input class="input w-md" type="number" id="productivity" value="'+s.productivityPerAgent+'" min="1" max="200" onchange="updateSettings()"></div>'
+    +'<div class="form-row"><label>Jours écoulés</label><input class="input w-md" type="number" id="daysElapsed" value="'+(data.daysElapsed||s.daysElapsed||0)+'" min="0" max="31" onchange="updateDaysElapsed()"></div>'
+    +'<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px"><div style="font-size:11px;color:var(--muted)">Diviseur hebdomadaire</div><div style="font-size:20px;font-weight:700;color:var(--primary)">÷ '+((s.weekdays + s.saturdays) / 5).toFixed(2)+'</div><div style="font-size:11px;color:var(--muted)">calculé depuis jours</div></div>'
     +'</div>'
     +'</div>'
 
@@ -654,18 +787,19 @@ function renderConfig(){
     +'<div style="overflow-x:auto">'
     +'<table class="config-table">'
     +'<thead><tr>'
-    +'<th style="min-width:140px">Fournisseur</th><th>Brut / mois</th><th>Tx Signature</th><th>Tx Facturation</th><th>Valeur moy. (&euro;)</th>'
-    +'<th>Sign\u00e9 calc.</th><th>Factur\u00e9 calc.</th><th>CA projet\u00e9</th><th>Priorit\u00e9</th><th>R\u00e9partition ADM %</th><th></th>'
+    +'<th style="min-width:140px">Fournisseur</th><th>Brut / mois</th><th>Réalisé</th><th>Tx Signature</th><th>Tx Facturation</th><th>Valeur moy. (&euro;)</th>'
+    +'<th>Signé calc.</th><th>Facturé calc.</th><th>CA projeté</th><th>Priorité</th><th>Campagne</th><th>Répartition ADM %</th><th></th>'
     +'</tr></thead>'
     +'<tbody>'+supplierRows+'</tbody>'
     +'<tfoot><tr class="row-total">'
     +'<td><strong>TOTAL</strong></td>'
     +'<td><span class="computed">'+fmt(calc.totals.brut)+'</span></td>'
-    +'<td colspan="3" style="color:var(--muted);font-size:11px">&mdash; calcul\u00e9s &mdash;</td>'
+    +'<td><span class="computed" style="color:var(--primary)">'+fmt(calc.totals.realized)+'</span></td>'
+    +'<td colspan="3" style="color:var(--muted);font-size:11px">&mdash; calculés &mdash;</td>'
     +'<td><span class="computed">'+fmt(calc.totals.signe)+'</span></td>'
     +'<td><span class="computed">'+fmt(calc.totals.facture)+'</span></td>'
     +'<td><span class="computed" style="color:var(--success)">'+fmtEur(calc.totals.ca)+'</span></td>'
-    +'<td colspan="3"></td>'
+    +'<td colspan="4"></td>'
     +'</tr></tfoot>'
     +'</table></div>'
     +'</div>'
@@ -678,9 +812,22 @@ function renderConfig(){
     +'<div style="color:var(--muted);font-size:20px;padding-top:16px">&rarr;</div>'
     +'<div style="display:flex;flex-direction:column;gap:4px"><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">Mois cible</label><select id="dupTarget" class="input">'+genMonthOptions(1)+'</select></div>'
     +'<div style="padding-top:16px"><button class="btn btn-primary" onclick="duplicateMonth()">&#128203; Dupliquer</button></div>'
-    +'<div style="padding-top:16px"><button class="btn btn-outline" onclick="copyPrevMonth()">&larrhk; Reprendre mois pr\u00e9c\u00e9dent</button></div>'
+    +'<div style="padding-top:16px"><button class="btn btn-outline" onclick="copyPrevMonth()">&larrhk; Reprendre mois précédent</button></div>'
     +'</div>'
     +'</div>';
+}
+
+function genMonthOptions(offset){
+  offset = offset || 0;
+  let html = '';
+  for(let m = 0; m < 12; m++){
+    const mo = (currentMonth + offset + m) % 12;
+    const yr = currentYear + Math.floor((currentMonth + offset + m) / 12);
+    const key = getMonthKey(yr, mo);
+    const sel = (m === 0) ? 'selected' : '';
+    html += '<option value="'+key+'" '+sel+'>'+MONTHS_FR[mo]+' '+yr+'</option>';
+  }
+  return html;
 }
 
 function genMonthOptions(offset){
@@ -713,18 +860,26 @@ function renderMatrix(){
       let rows = sup.map(function(s){
         return '<tr>'
           +'<td><span class="supplier-name"><span class="supplier-dot" style="background:'+s.color+'"></span>'+s.name+'</span></td>'
-          +'<td class="num">'+fmt(s[brutKey])+'</td><td class="num">'+fmt(s[signeKey])+'</td>'
-          +'<td class="num">'+fmt(s[admBrutKey])+'</td><td class="num">'+fmt(s[admSigneKey])+'</td>'
-          +'<td class="num">'+fmt(s[actBrutKey])+'</td><td class="num">'+fmt(s[actSigneKey])+'</td>'
+          +'<td class="num">'+fmt(s[brutKey])+'</td>'
+          +'<td class="num" style="color:var(--primary);font-weight:600">'+fmt(s.realized)+'</td>'
+          +'<td class="num">'+fmtPct(s.pctAtteinte)+'</td>'
+          +'<td class="num">'+fmt(s.projection)+'</td>'
+          +'<td class="num"><span class="badge '+s.statutCls+'">'+s.statut+'</span></td>'
+          +'<td class="num">'+fmt(s[admBrutKey])+'</td>'
+          +'<td class="num">'+fmt(s[actBrutKey])+'</td>'
           +'</tr>';
       }).join('');
       return '<table class="data-table">'
-        +'<thead><tr><th>Fournisseur</th><th class="num">Brut</th><th class="num">Sign\u00e9</th><th class="num">ADM Brut</th><th class="num">ADM Sign\u00e9</th><th class="num">Active Brut</th><th class="num">Active Sign\u00e9</th></tr></thead>'
+        +'<thead><tr><th>Fournisseur</th><th class="num">Quota</th><th class="num">R\u00e9alis\u00e9</th><th class="num">% Att.</th><th class="num">Projection</th><th>Statut</th><th class="num">ADM</th><th class="num">Active</th></tr></thead>'
         +'<tbody>'+rows+'</tbody>'
         +'<tfoot><tr class="row-total"><td><strong>TOTAL</strong></td>'
-        +'<td class="num">'+fmt(T[brutKey])+'</td><td class="num">'+fmt(T[signeKey])+'</td>'
-        +'<td class="num">'+fmt(T[admBrutKey])+'</td><td class="num">'+fmt(T[admSigneKey])+'</td>'
-        +'<td class="num">'+fmt(T[actBrutKey])+'</td><td class="num">'+fmt(T[actSigneKey])+'</td>'
+        +'<td class="num">'+fmt(T[brutKey])+'</td>'
+        +'<td class="num" style="color:var(--primary)">'+fmt(T.realized)+'</td>'
+        +'<td class="num">'+fmtPct(T.pctAtteinte)+'</td>'
+        +'<td class="num">'+fmt(T.projection)+'</td>'
+        +'<td><span class="badge '+T.statutCls+'">'+T.statut+'</span></td>'
+        +'<td class="num">'+fmt(T[admBrutKey])+'</td>'
+        +'<td class="num">'+fmt(T[actBrutKey])+'</td>'
         +'</tr></tfoot></table>';
     }
     const iAdm = view === 'adm';
@@ -747,8 +902,8 @@ function renderMatrix(){
 
   const periodLabel = {
     'mensuel': 'Mensuel',
-    'hebdo': 'Hebdomadaire (\u00f74,33)',
-    'journalier': 'Journalier (\u00f7'+calc.settings.workingDays+' jours)'
+    'hebdo': 'Hebdomadaire (\u00f7'+(((calc.settings.weekdays||22)+(calc.settings.saturdays||4))/5).toFixed(2)+')',
+    'journalier': 'Journalier (\u00f7'+((calc.settings.weekdays||22)+(calc.settings.saturdays||4))+' jours)'
   };
   const viewLabel = {'global':'Vue Globale','adm':'ADM Value','active':'Active Contact'};
 
@@ -765,7 +920,7 @@ function renderMatrix(){
   if(matrixPeriod === 'hebdo'){
     extra = '<span class="info-chip">Base\u00a0: mensuel \u00f7 4,33</span>';
   } else if(matrixPeriod === 'journalier'){
-    extra = '<span class="info-chip">Base\u00a0: mensuel \u00f7 '+calc.settings.workingDays+' jours ouvrés (lun-sam)</span>';
+    extra = '<span class="info-chip">Base\u00a0: mensuel \u00f7 '+((calc.settings.weekdays||22)+(calc.settings.saturdays||4))+' jours ouvrés (lun-sam)</span>';
   }
 
   let summaryBlock = '';
@@ -807,7 +962,8 @@ function renderSimulation(){
   const calc = calcAll();
   const cc = getCCData();
   const data = getCurrentData();
-  const wd = data.settings.workingDays || 26;
+  const wd = data.settings.weekdays || 22;
+  const sat = data.settings.saturdays || 4;
   const prod = data.settings.productivityPerAgent || 20;
   const totalAgents = simAdmAgents + simActAgents;
   const admW = totalAgents > 0 ? simAdmAgents / totalAgents : 0.5;
@@ -815,7 +971,8 @@ function renderSimulation(){
   const calcedSim = data.suppliers.map(function(s, i){
     const mult = simMultipliers[s.id] || 100;
     const brut = Math.round(s.brut * mult / 100);
-    const aW = s.splitMode === 'manual' ? s.splitAdm / 100 : admW;
+    const isComparateur = s.campaign === 'Comparateur';
+    const aW = isComparateur ? 1 : (s.splitMode === 'manual' ? s.splitAdm / 100 : admW);
     const signe = Math.round(brut * s.txSig);
     const facture = Math.round(signe * s.txFact);
     const ca = Math.round(facture * s.valMoy);
@@ -831,8 +988,8 @@ function renderSimulation(){
     return a;
   }, {});
 
-  const simCapAdm = simAdmAgents * prod * wd;
-  const simCapAct = simActAgents * prod * wd;
+  const simCapAdm = (simAdmAgents * wd * prod) + (simAdmAgents * (cc.adm.saturdayRate || 0.30) * sat * prod);
+  const simCapAct = (simActAgents * wd * prod) + (simActAgents * (cc.active.saturdayRate || 0.30) * sat * prod);
   const T = calc.totals;
 
   function delta(sim, orig){
@@ -925,21 +1082,27 @@ function updateCC(){
   const cc = getCCData();
   const admA = document.getElementById('admAgents');
   const admH = document.getElementById('admHours');
+  const admSatR = document.getElementById('admSatRate');
   const actA = document.getElementById('actAgents');
   const actH = document.getElementById('actHours');
+  const actSatR = document.getElementById('actSatRate');
   if(admA) cc.adm.agents = +admA.value || 95;
   if(admH) cc.adm.hoursPerDay = +admH.value || 7;
+  if(admSatR) cc.adm.saturdayRate = (+admSatR.value || 30) / 100;
   if(actA) cc.active.agents = +actA.value || 75;
   if(actH) cc.active.hoursPerDay = +actH.value || 7;
+  if(actSatR) cc.active.saturdayRate = (+actSatR.value || 30) / 100;
   saveCCData(cc);
   renderConfig();
 }
 
 function updateSettings(){
   const data = getCurrentData();
-  const wd = document.getElementById('workingDays');
+  const wd = document.getElementById('weekdayDays');
+  const sat = document.getElementById('saturdayDays');
   const pd = document.getElementById('productivity');
-  if(wd) data.settings.workingDays = +wd.value || 26;
+  if(wd) data.settings.weekdays = +wd.value || 22;
+  if(sat) data.settings.saturdays = +sat.value || 4;
   if(pd) data.settings.productivityPerAgent = +pd.value || 20;
   saveCurrentData(data);
   renderConfig();
@@ -959,7 +1122,7 @@ function addSupplier(){
     id: 's'+Date.now(),
     name: 'Nouveau fournisseur',
     brut: 1000, txSig: 0.65, txFact: 0.85,
-    valMoy: 120, priority: 2, splitMode: 'auto', splitAdm: 56
+    valMoy: 120, priority: 2, splitMode: 'auto', splitAdm: 56, campaign: 'MES'
   });
   saveCurrentData(data);
   renderConfig();
